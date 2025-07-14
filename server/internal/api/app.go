@@ -5,19 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/simbafs/controly/server/internal/entity"
 	"github.com/simbafs/controly/server/internal/usecase"
 )
-
-type CreateAppBody struct {
-	Name     string `json:"name" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type AppBody struct {
-	Name    string           `json:"name"`
-	Control []map[string]any `json:"controls"`
-}
 
 type AppAPI struct {
 	appUsecase usecase.App
@@ -39,7 +28,7 @@ func (a *AppAPI) Setup(r *gin.Engine) {
 }
 
 func (a *AppAPI) Create(c *gin.Context) {
-	var body CreateAppBody
+	var body CreateAppRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -53,36 +42,24 @@ func (a *AppAPI) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, buildAppResp(app))
+	c.JSON(http.StatusCreated, toAppResponse(app))
 }
 
 func (a *AppAPI) Update(c *gin.Context) {
 	name := c.Param("name")
-	var body AppBody
+	var body UpdateAppRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	app, err := a.appUsecase.UpdateApp(c.Request.Context(), name, body.Control)
+	app, err := a.appUsecase.UpdateApp(c.Request.Context(), name, body.Controls)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, buildAppResp(app))
-}
-
-func buildAppResp(app *entity.App) AppBody {
-	controls := make([]map[string]any, len(app.Controls()))
-	for i, control := range app.Controls() {
-		controls[i] = control.Map()
-	}
-
-	return AppBody{
-		Name:    app.Name(),
-		Control: controls,
-	}
+	c.JSON(http.StatusOK, toAppResponse(app))
 }
 
 func (a *AppAPI) List(c *gin.Context) {
@@ -92,9 +69,9 @@ func (a *AppAPI) List(c *gin.Context) {
 		return
 	}
 
-	body := make([]AppBody, len(apps))
+	body := make([]AppResponse, len(apps))
 	for i, app := range apps {
-		body[i] = buildAppResp(app)
+		body[i] = toAppResponse(app)
 	}
 
 	c.JSON(http.StatusOK, body)
@@ -108,7 +85,7 @@ func (a *AppAPI) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, buildAppResp(app))
+	c.JSON(http.StatusOK, toAppResponse(app))
 }
 
 func (a *AppAPI) Delete(c *gin.Context) {
