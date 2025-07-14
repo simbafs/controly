@@ -4,6 +4,7 @@ import { App } from '@/types/app'
 import { type Control } from '@/types/control'
 import { useRef, useState } from 'react'
 import { ControlComponent } from './ControlComponent'
+import { api, useApi } from '@/hooks/useFetch'
 
 export default function Page() {
 	const [app, setApp] = useState<App | null>(null)
@@ -30,8 +31,11 @@ export default function Page() {
 	}
 
 	const handleSubmitChange = () => {
-		// TODO:
-		console.log(app)
+		if (!app) return
+		api(`/api/app/${app.name}`, {
+			method: 'PUT',
+			body: JSON.stringify(app),
+		}).catch(err => console.error('Error submitting changes:', err))
 	}
 
 	if (!app) {
@@ -63,49 +67,23 @@ export default function Page() {
 	)
 }
 
-function useApps() {
-	// TODO:
-	return [
-		{
-			name: 'App 1',
-			controls: [
-				{
-					type: 'button',
-					name: 'start',
-				},
-				{
-					type: 'number',
-					name: 'n',
-					min: 1,
-					max: 5,
-				},
-				{
-					type: 'text',
-					name: 'message',
-					regex: '^$',
-				},
-				{
-					type: 'select',
-					name: 'color',
-					options: [
-						{ value: '#ff0000', label: 'Red' },
-						{ value: '#00ff00', label: 'Green' },
-						{ value: '#0000ff', label: 'Blue' },
-					],
-				},
-			],
-		},
-		{ name: 'App 2', controls: [] },
-	] as App[]
+function useApps(): App[] {
+	return useApi('/api/app') || []
 }
 
-function createApp(name: string, password: string): App {
-	// TODO:
-	console.log(`create app with name: ${name} and password: ${password}`)
-	return {
-		name,
-		controls: [],
-	}
+async function createApp(name: string, password: string) {
+	return api('/api/app', {
+		method: 'POST',
+		body: JSON.stringify({
+			name,
+			password,
+		}),
+	})
+		.catch(err => {
+			console.error('Error creating app:', err)
+			return null
+		})
+		.then(() => ({ name, controls: [] }) as App)
 }
 
 function ChooseApp({ setApp }: { setApp: (app: App | null) => void }) {
@@ -131,7 +109,7 @@ function ChooseApp({ setApp }: { setApp: (app: App | null) => void }) {
 			<form
 				onSubmit={e => {
 					e.preventDefault()
-					setApp(createApp(nameRef.current?.value || '', passwordRef.current?.value || ''))
+					createApp(nameRef.current?.value || '', passwordRef.current?.value || '').then(setApp)
 				}}
 			>
 				<input

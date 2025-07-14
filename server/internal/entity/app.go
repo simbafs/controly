@@ -45,3 +45,7 @@ func (a *App) Controls() []Control {
 func (a *App) AppendControl(control ...Control) {
 	a.controls = append(a.controls, control...)
 }
+
+func (a *App) ClearControls() {
+	a.controls = make([]Control, 0)
+}

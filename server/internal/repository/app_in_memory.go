@@ -49,11 +49,11 @@ func (a *appInMemory) List(ctx context.Context) ([]*entity.App, error) {
 	}), nil
 }
 
-func (a *appInMemory) Put(ctx context.Context, id string, app *entity.App) error {
+func (a *appInMemory) Put(ctx context.Context, app *entity.App) error {
 	a.Lock()
 	defer a.Unlock()
 
-	a.apps[id] = app
+	a.apps[app.Name()] = app
 	return nil
 }
 

@@ -1,6 +1,9 @@
 package entity
 
-import "regexp"
+import (
+	"errors"
+	"regexp"
+)
 
 type ControlType string
 
@@ -14,6 +17,31 @@ type Control interface {
 	Name() string
 	Type() ControlType
 	Verify(v any) bool
+	Map() map[string]any
+}
+
+var ErrInvalidControlType = errors.New("invalid control type")
+
+// TODO: prevent panic when type asserting fail
+func NewControl(c map[string]any) (Control, error) {
+	switch c["type"] {
+	case string(ButtonType):
+		return NewButtonControl(c["name"].(string)), nil
+	case string(TextType):
+		regexStr := c["regex"].(string)
+		regex, err := regexp.Compile(regexStr)
+		if err != nil {
+			return nil, err
+		}
+		return NewTextControl(c["name"].(string), regex), nil
+	case string(NumberType):
+		intType := c["int"].(bool)
+		min := c["min"].(float64)
+		max := c["max"].(float64)
+		return NewNumberControl(c["name"].(string), intType, min, max), nil
+	default:
+		return nil, ErrInvalidControlType
+	}
 }
 
 func NewButtonControl(name string) Control {
@@ -35,6 +63,13 @@ func (b *buttonControl) Type() ControlType {
 func (b *buttonControl) Verify(v any) bool {
 	_, ok := v.(bool)
 	return ok
+}
+
+func (b *buttonControl) Map() map[string]any {
+	return map[string]any{
+		"name": b.name,
+		"type": string(ButtonType),
+	}
 }
 
 func NewTextControl(name string, regex *regexp.Regexp) Control {
@@ -61,6 +96,14 @@ func (t *textControl) Verify(v any) bool {
 	}
 
 	return t.regex.MatchString(s)
+}
+
+func (t *textControl) Map() map[string]any {
+	return map[string]any{
+		"name":  t.name,
+		"type":  string(TextType),
+		"regex": t.regex.String(),
+	}
 }
 
 func NewNumberControl(name string, intType bool, min, max float64) Control {
@@ -130,5 +173,66 @@ func (n *numberControl) Verify(v any) bool {
 
 	default:
 		return false
+	}
+}
+
+func (n *numberControl) Map() map[string]any {
+	return map[string]any{
+		"name": n.name,
+		"type": string(NumberType),
+		"int":  n.int,
+		"min":  n.min,
+		"max":  n.max,
+	}
+}
+
+type selectOption struct {
+	label string
+	value string
+}
+
+type selectControl struct {
+	name    string
+	options []selectOption
+}
+
+func NewSelectControl(name string, options []selectOption) Control {
+	return &selectControl{name: name, options: options}
+}
+
+func (s *selectControl) Name() string {
+	return s.name
+}
+
+func (s *selectControl) Type() ControlType {
+	return "select"
+}
+
+func (s *selectControl) Verify(v any) bool {
+	if _, ok := v.(string); !ok {
+		return false
+	}
+
+	for _, option := range s.options {
+		if option.value == v {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *selectControl) Map() map[string]any {
+	options := make([]map[string]string, len(s.options))
+	for i, option := range s.options {
+		options[i] = map[string]string{
+			"label": option.label,
+			"value": option.value,
+		}
+	}
+
+	return map[string]any{
+		"name":    s.name,
+		"type":    string(s.Type()),
+		"options": options,
 	}
 }

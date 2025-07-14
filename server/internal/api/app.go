@@ -1,13 +1,23 @@
-
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/simbafs/controly/server/internal/entity"
 	"github.com/simbafs/controly/server/internal/repository"
 )
+
+type CreateAppBody struct {
+	Name     string `json:"name" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type AppBody struct {
+	Name    string           `json:"name"`
+	Control []map[string]any `json:"controls"`
+}
 
 type AppAPI struct {
 	appRepo repository.App
@@ -29,34 +39,70 @@ func (a *AppAPI) Setup(r *gin.Engine) {
 }
 
 func (a *AppAPI) Create(c *gin.Context) {
-	var app entity.App
-	if err := c.ShouldBindJSON(&app); err != nil {
+	var body CreateAppBody
+	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.appRepo.Put(c.Request.Context(), app.Name(), &app); err != nil {
+	slog.Debug("create app", "app", body)
+
+	app, err := entity.NewApp(body.Name, body.Password)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := a.appRepo.Put(c.Request.Context(), app); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, app)
+	c.JSON(http.StatusCreated, body)
 }
 
 func (a *AppAPI) Update(c *gin.Context) {
 	name := c.Param("name")
-	var app entity.App
-	if err := c.ShouldBindJSON(&app); err != nil {
+	var body AppBody
+	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.appRepo.Put(c.Request.Context(), name, &app); err != nil {
+	app, err := a.appRepo.Get(c.Request.Context(), name)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	}
+
+	app.ClearControls()
+	for _, controlMap := range body.Control {
+		control, err := entity.NewControl(controlMap)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		app.AppendControl(control)
+	}
+
+	if err := a.appRepo.Put(c.Request.Context(), app); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, app)
+	c.JSON(http.StatusOK, body)
+}
+
+func buildAppResp(app *entity.App) AppBody {
+	controls := make([]map[string]any, len(app.Controls()))
+	for i, control := range app.Controls() {
+		controls[i] = control.Map()
+	}
+
+	return AppBody{
+		Name:    app.Name(),
+		Control: controls,
+	}
 }
 
 func (a *AppAPI) List(c *gin.Context) {
@@ -66,7 +112,12 @@ func (a *AppAPI) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, apps)
+	body := make([]AppBody, len(apps))
+	for i, app := range apps {
+		body[i] = buildAppResp(app)
+	}
+
+	c.JSON(http.StatusOK, body)
 }
 
 func (a *AppAPI) Get(c *gin.Context) {
@@ -77,7 +128,7 @@ func (a *AppAPI) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, app)
+	c.JSON(http.StatusOK, buildAppResp(app))
 }
 
 func (a *AppAPI) Delete(c *gin.Context) {

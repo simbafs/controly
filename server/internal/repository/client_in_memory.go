@@ -31,10 +31,10 @@ func (c *clientInMeomry) Get(ctx context.Context, id string) (*entity.Client, er
 	return client, nil
 }
 
-func (c *clientInMeomry) Put(ctx context.Context, id string, client *entity.Client) error {
+func (c *clientInMeomry) Put(ctx context.Context, client *entity.Client) error {
 	c.Lock()
 	defer c.Unlock()
 
-	c.clients[id] = client
+	c.clients[client.ID()] = client
 	return nil
 }
