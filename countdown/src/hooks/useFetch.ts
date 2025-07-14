@@ -12,7 +12,7 @@ export function useApi<T>(url: string) {
 			.then(res => res.json())
 			.then(setData)
 			.catch(err => console.error(`Error fetching data from ${url}:`, err))
-	})
+	}, [url])
 
 	return data
 }
