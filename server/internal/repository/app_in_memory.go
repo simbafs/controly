@@ -56,3 +56,11 @@ func (a *appInMemory) Put(ctx context.Context, id string, app *entity.App) error
 	a.apps[id] = app
 	return nil
 }
+
+func (a *appInMemory) Delete(ctx context.Context, id string) error {
+	a.Lock()
+	defer a.Unlock()
+
+	delete(a.apps, id)
+	return nil
+}

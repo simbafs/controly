@@ -18,4 +18,5 @@ type App interface {
 	Get(ctx context.Context, id string) (*entity.App, error)
 	List(ctx context.Context) ([]*entity.App, error)
 	Put(ctx context.Context, id string, app *entity.App) error
+	Delete(ctx context.Context, id string) error
 }
