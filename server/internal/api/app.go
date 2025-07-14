@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/simbafs/controly/server/internal/entity"
-	"github.com/simbafs/controly/server/internal/repository"
+	"github.com/simbafs/controly/server/internal/usecase"
 )
 
 type CreateAppBody struct {
@@ -20,12 +20,12 @@ type AppBody struct {
 }
 
 type AppAPI struct {
-	appRepo repository.App
+	appUsecase usecase.App
 }
 
-func NewAppAPI(appRepo repository.App) *AppAPI {
+func NewAppAPI(appUsecase usecase.App) *AppAPI {
 	return &AppAPI{
-		appRepo: appRepo,
+		appUsecase: appUsecase,
 	}
 }
 
@@ -47,18 +47,13 @@ func (a *AppAPI) Create(c *gin.Context) {
 
 	slog.Debug("create app", "app", body)
 
-	app, err := entity.NewApp(body.Name, body.Password)
+	app, err := a.appUsecase.CreateApp(c.Request.Context(), body.Name, body.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := a.appRepo.Put(c.Request.Context(), app); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, body)
+	c.JSON(http.StatusCreated, buildAppResp(app))
 }
 
 func (a *AppAPI) Update(c *gin.Context) {
@@ -69,28 +64,13 @@ func (a *AppAPI) Update(c *gin.Context) {
 		return
 	}
 
-	app, err := a.appRepo.Get(c.Request.Context(), name)
+	app, err := a.appUsecase.UpdateApp(c.Request.Context(), name, body.Control)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	}
-
-	app.ClearControls()
-	for _, controlMap := range body.Control {
-		control, err := entity.NewControl(controlMap)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		app.AppendControl(control)
-	}
-
-	if err := a.appRepo.Put(c.Request.Context(), app); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, body)
+	c.JSON(http.StatusOK, buildAppResp(app))
 }
 
 func buildAppResp(app *entity.App) AppBody {
@@ -106,7 +86,7 @@ func buildAppResp(app *entity.App) AppBody {
 }
 
 func (a *AppAPI) List(c *gin.Context) {
-	apps, err := a.appRepo.List(c.Request.Context())
+	apps, err := a.appUsecase.ListApps(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -122,7 +102,7 @@ func (a *AppAPI) List(c *gin.Context) {
 
 func (a *AppAPI) Get(c *gin.Context) {
 	name := c.Param("name")
-	app, err := a.appRepo.Get(c.Request.Context(), name)
+	app, err := a.appUsecase.GetApp(c.Request.Context(), name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -133,7 +113,7 @@ func (a *AppAPI) Get(c *gin.Context) {
 
 func (a *AppAPI) Delete(c *gin.Context) {
 	name := c.Param("name")
-	if err := a.appRepo.Delete(c.Request.Context(), name); err != nil {
+	if err := a.appUsecase.DeleteApp(c.Request.Context(), name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

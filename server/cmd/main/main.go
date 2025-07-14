@@ -9,6 +9,7 @@ import (
 	"github.com/simbafs/controly/server/internal/entity"
 	"github.com/simbafs/controly/server/internal/hub"
 	"github.com/simbafs/controly/server/internal/repository"
+	"github.com/simbafs/controly/server/internal/usecase"
 )
 
 func insertTestData(appRepo repository.App) {
@@ -34,7 +35,8 @@ func main() {
 	r := gin.Default()
 
 	appRepo := repository.NewAppInMemory()
-	appAPI := api.NewAppAPI(appRepo)
+	appUsecase := usecase.NewAppUsecase(appRepo)
+	appAPI := api.NewAppAPI(appUsecase)
 	appAPI.Setup(r)
 
 	insertTestData(appRepo)
