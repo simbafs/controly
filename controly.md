@@ -63,7 +63,98 @@
 
 ## 5. 資料結構定義
 
-### 5.1. 命令定義 (`command.json`)
+### 5.1. WebSocket 訊息格式
+
+所有透過 WebSocket 傳輸的資料都應為 JSON 格式。
+
+- **通用結構**:
+
+    ```json
+    {
+    	"type": "<MessageType>",
+    	"payload": {}
+    }
+    ```
+
+- **訊息類型 (`MessageType`)**:
+
+    - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。
+    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。
+    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。
+    - `error` (Server -> Client): 伺服器發送的錯誤通知。
+
+- **範例**:
+    - **指令 (`command`)**:
+        ```json
+        {
+        	"type": "command",
+        	"payload": {
+        		"name": "set_volume",
+        		"args": {
+        			"level": 80
+        		}
+        	}
+        }
+        ```
+    - **狀態 (`status`)**:
+        ```json
+        {
+        	"type": "status",
+        	"payload": {
+        		"playback_state": "playing",
+        		"current_volume": 80
+        	}
+        }
+        ```
+
+## 5. 錯誤處理機制
+
+伺服器在遇到問題時，會透過 `error` 類型的 WebSocket 訊息通知客戶端。此訊息的 `payload` 將包含 `code`（錯誤碼）和 `message`（錯誤描述）。
+
+```json
+{
+	"type": "error",
+	"payload": {
+		"code": 1001,
+		"message": "Request is missing required query parameter: type"
+	}
+}
+```
+
+以下是系統中可能發生的錯誤及其代碼：
+
+### 5.1. 連線錯誤 (1xxx)
+
+| Code   | Message                  | 說明                                                                               |
+| :----- | :----------------------- | :--------------------------------------------------------------------------------- |
+| `1001` | Invalid Query Parameters | 連線請求的查詢參數缺失或格式錯誤 (例如，缺少 `type`, `command_url`, `target_id`)。 |
+| `1002` | Invalid Client Type      | `type` 參數的值不是 `display` 或 `controller`。                                    |
+
+### 5.2. Display 註冊錯誤 (2xxx)
+
+| Code   | Message                 | 說明                                                                               |
+| :----- | :---------------------- | :--------------------------------------------------------------------------------- |
+| `2001` | Command URL Unreachable | 伺服器無法存取 Display 提供的 `command_url`。                                      |
+| `2002` | Invalid Command JSON    | 從 `command_url` 取得的內容不是有效的 JSON，或其結構不符合 `command.json` 的規範。 |
+| `2003` | Display ID Conflict     | Display 嘗試註冊的 `id` 已被另一個活躍的 Display 使用。                            |
+
+### 5.3. Controller 連線錯誤 (3xxx)
+
+| Code   | Message                           | 說明                                                                |
+| :----- | :-------------------------------- | :------------------------------------------------------------------ |
+| `3001` | Target Display Not Found          | Controller 嘗試連線的 `target_id` 不存在或對應的 Display 不在線上。 |
+| `3002` | Target Display Already Controlled | 該 Display 已被另一個 Controller 控制（在目前的一對一模型下）。     |
+
+### 5.4. 通訊錯誤 (4xxx)
+
+| Code   | Message                   | 說明                                                                                               |
+| :----- | :------------------------ | :------------------------------------------------------------------------------------------------- |
+| `4001` | Invalid Message Format    | 客戶端發送的訊息不是有效的 JSON��或不符合 `{ "type": "...", "payload": ... }` 的基本結構。         |
+| `4003` | Invalid Command Arguments | 伺服器在轉發指令前，不會驗證指令名稱或參數的有效性。此錯誤碼僅作為範例，實際伺服器將直接轉發指令。 |
+
+## 附錄：命令定義與控制項類型
+
+### 命令定義 (`command.json`)
 
 此檔案定義了 Display 可執行的所有命令，其內容應為一個 JSON 陣列，每個物件代表一個 UI 控制項。
 
@@ -86,7 +177,7 @@
     - `default` (string, optional): 預設值。
     - `regex` (string, optional): 用於驗證輸入內容的正規表示式。
 
-3.  **數字輸入 (Number)**: 用於輸入整數或浮點數。
+3.  **數字輸入 (Number)**: 用於輸入���數或浮點數。
 
     - `type`: `"number"`
     - `default` (number, optional): 預設值。
@@ -157,93 +248,3 @@
 	}
 ]
 ```
-
-### 5.2. WebSocket 訊息格式
-
-所有透過 WebSocket 傳輸的資料都應為 JSON 格式。
-
-- **通用結構**:
-
-    ```json
-    {
-    	"type": "<MessageType>",
-    	"payload": {}
-    }
-    ```
-
-- **訊息類型 (`MessageType`)**:
-
-    - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。
-    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。
-    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。
-    - `error` (Server -> Client): 伺服器發送的錯誤通知。
-
-- **範例**:
-    - **指令 (`command`)**:
-        ```json
-        {
-        	"type": "command",
-        	"payload": {
-        		"name": "set_volume",
-        		"args": {
-        			"level": 80
-        		}
-        	}
-        }
-        ```
-    - **狀態 (`status`)**:
-        ```json
-        {
-        	"type": "status",
-        	"payload": {
-        		"playback_state": "playing",
-        		"current_volume": 80
-        	}
-        }
-        ```
-
-## 6. 錯誤處理機制
-
-伺服器在遇到問題時，會透過 `error` 類型的 WebSocket 訊息通知客戶端。此訊息的 `payload` 將包含 `code`（錯誤碼）和 `message`（錯誤描述）。
-
-```json
-{
-	"type": "error",
-	"payload": {
-		"code": 1001,
-		"message": "Request is missing required query parameter: type"
-	}
-}
-```
-
-以下是系統中可能發生的錯誤及其代碼：
-
-### 6.1. 連線錯誤 (1xxx)
-
-| Code   | Message                  | 說明                                                                               |
-| :----- | :----------------------- | :--------------------------------------------------------------------------------- |
-| `1001` | Invalid Query Parameters | 連線請求的查詢參數缺失或格式錯誤 (例如，缺少 `type`, `command_url`, `target_id`)。 |
-| `1002` | Invalid Client Type      | `type` 參數的值不是 `display` 或 `controller`。                                    |
-
-### 6.2. Display 註冊錯誤 (2xxx)
-
-| Code   | Message                 | 說明                                                                               |
-| :----- | :---------------------- | :--------------------------------------------------------------------------------- |
-| `2001` | Command URL Unreachable | 伺服器無法存取 Display 提供的 `command_url`。                                      |
-| `2002` | Invalid Command JSON    | 從 `command_url` 取得的內容不是有效的 JSON，或其結構不符合 `command.json` 的規範。 |
-| `2003` | Display ID Conflict     | Display 嘗試註冊的 `id` 已被另一個活躍的 Display 使用。                            |
-
-### 6.3. Controller 連線錯誤 (3xxx)
-
-| Code   | Message                           | 說明                                                                |
-| :----- | :-------------------------------- | :------------------------------------------------------------------ |
-| `3001` | Target Display Not Found          | Controller 嘗試連線的 `target_id` 不存在或對應的 Display 不在線上。 |
-| `3002` | Target Display Already Controlled | 該 Display 已被另一個 Controller 控制（在目前的一對一模型下）。     |
-
-### 6.4. 通訊錯誤 (4xxx)
-
-| Code   | Message                   | 說明                                                                                       |
-| :----- | :------------------------ | :----------------------------------------------------------------------------------------- |
-| `4001` | Invalid Message Format    | 客戶端發送的訊息不是有效的 JSON，或不符合 `{ "type": "...", "payload": ... }` 的基本結構。 |
-| `4002` | Unknown Command           | Controller 發送的指令名稱 (`name`) 不在 Display 的可用命令清單中。                         |
-| `4003` | Invalid Command Arguments | 指令所帶的參數無效（例如，資料類型錯誤、數值超出範圍等）。                                 |
