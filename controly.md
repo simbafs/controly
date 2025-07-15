@@ -1,330 +1,249 @@
-# API
-## 客戶端註冊
-伺服器產生 uuid
-```mermaid
-sequenceDiagram
-	client->>+server: GET /api/client/register?app=<appid>
-	client<<->>server: websocket
-	deactivate server
-```
-客戶端指定
-```mermaid
-sequenceDiagram
-client->>+server: GET /api/client/register?app=<appid>&uuid=<uuid>
-client<<->>server: websocket
-deactivate server
-```
-## 管理端註冊
-管理端所有操作都在 websocket 裡
-```mermaid
-sequenceDiagram
-admin->>+server: GET /api/admin/ws
-admin<<->>server: websocket
-deactivate server
-```
-## 管理端連接客戶端
-> in websocket
-```mermaid
-sequenceDiagram
-admin->>server: connect=<uuid>
-server->>admin: connect=<uuid> {definition of controls}
-```
-## 管理端執行某個動作（含修改某個值）
-> in websocket
-```mermaid
-sequenceDiagram
-admin->>server: action=<action name> data=...
-server->>admin: action=<action name> data=... (response)
-```
-## 客戶端主動更新狀態
-> in websocket
-```mermaid
-sequenceDiagram
-client->>server: status=...
-```
-## 伺服器通知管理端狀態更新
-> in websocket
-```mermaid
-sequenceDiagram
-server->>admin: status=... uuid=...
-```
-## 客戶端向其他客戶端廣播訊息
-> in websocket
-```mermaid
-sequenceDiagram
-client->>server: broadcast=...
-```
-限制只向某些客戶端發送（考慮要不要限制必須是同一個 App）
-```mermaid
-sequenceDiagram
-client->>server: broadcast=... uuid=xxx,yyy,zzz
-```
-## 取得 App 內的客戶端
-> in websocket
-```mermaid
-sequenceDiagram
-admin/client->>server: query="client"
-server->>admin/client: clients=[xxx, yyy, ...]
-```
-## App
-App 是指一套關於如何控制客戶端的設定，使用密碼可以修改 App。有一套基本的 CURD API 可以建立、修改、查詢、刪除
-POST /api/app
-PUT /api/app/\<app>
-GET /api/app
-GET /api/app/\<app>
-DELETE /api/app/\<app>
+# Controly 專案詳細規劃
 
-```typescript
-type App = {
-	name: string
-	password: string // not exported
-	controls: Control[]
+## 1. 系統目標與範疇
+
+本專案旨在建立一個高效率、低延遲的即時通訊中繼系統。此系統允許「控制器 (Controller)」透過中介的「伺服器 (Server)」來探索並操作遠端的「被控制器 (Display)」。系統核心功能為命令的轉發與狀態的同步，所有通訊將基於 WebSocket 協議，以確保雙向即時互動。
+
+## 2. 系統架構
+
+本系統由以下三個核心組件構成：
+
+- **中繼伺服器 (Relay Server)**：作為通訊中樞，負責管理所有連線、驗證身份、儲存 Display 的命令集、並在 Controller 與 Display 之間安全地轉發訊息。
+- **被控制器 (Display)**：任何需要被遠端操作的客戶端。它會定義一組可執行的命令，並透過 WebSocket 連線到伺服器進行註冊，等待來自 Controller 的指令。
+- **控制器 (Controller)**：任何需要發起遠端操作的客戶端。它會向伺服器請求控制指定的 Display，接收其可用命令列表，並發送指令。
+
+## 3. 核心組件詳述
+
+### 3.1. 中繼伺服器 (Relay Server)
+
+- **職責**:
+
+    - **連線管理**: 維護與所有 Display 和 Controller 的 WebSocket 連線。
+    - **ID 管理**: 為每個 Display 分配一個全域唯一的 ID。支援客戶端指定 ID，並在 ID 衝突時拒絕連線。
+    - **命令快取**: Display 連線時，伺服器會擷取並快取其 `command.json` 的內容，供後續的 Controller 查詢。
+    - **訊息路由**: 根據訊息的目標 ID，準確地在 Controller 和 Display 之間轉發 `command` 與 `status` 訊息。
+    - **配對管理**: 維護 Controller 與 Display 之間的控制關係。目前系統的設計為一對一配對，即一個 Display 同一時間只能被一個 Controller 控制。未來的版本將考慮支援多對多關係，允許一個 Controller 同時控制多個 Display，或一個 Display 同時接收多個 Controller 的指令。
+
+- **WebSocket 端點**: `ws://<server_address>/ws`
+
+### 3.2. 被控制器 (Display)
+
+- **連線生命週期**:
+    1.  **註冊**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=display`、`command_url` 以及選填的 `id`。
+        - 範例: `ws://<server_address>/ws?type=display&command_url=https://example.com/commands.json&id=my-unique-display`
+    2.  **等待指令**: 成功註冊後，保持連線並監聽來自伺服器的 `command` 訊息。
+    3.  **狀態更新**: 可主動發送 `status` 訊息給伺服器，以同步其狀態至 Controller。
+    4.  **斷線**: 連線中斷時，伺服器會自動註銷其註冊。
+
+### 3.3. 控制器 (Controller)
+
+- **連線生命週期**:
+    1.  **請求控制**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=controller` 及 `target_id` (目標 Display 的 ID)。
+        - 範例: `ws://<server_address>/ws?type=controller&target_id=my-unique-display`
+    2.  **接收命令集**: 連線成功後，伺服器會立即回傳目標 Display 的可用命令列表。
+    3.  **發送指令**: 向伺服器發送 `command` 訊息來操作 Display。
+    4.  **接收狀態**: 監聽來自伺服器的 `status` 訊息，以獲取 Display 的最新狀態。
+
+## 4. 通訊協議與資料流程
+
+### 4.1. Display 註冊流程
+
+1.  Display 發起 WebSocket 連線請求。
+2.  Server 驗證 `command_url`，若無法存取或 JSON 格式錯誤，則連線失敗。
+3.  Server 檢查 `id`，若被佔用，則連線失敗。若未提供 `id`，則生成一個 UUID。
+4.  Server 儲存 Display 的資訊與命令集。
+5.  Server 向 Display 發送成功註冊的訊息。
+
+### 4.2. Controller 控制流程
+
+1.  Controller 發起 WebSocket 連線請求。
+2.  Server 查找 `target_id` 對應的 Display 是否存在且可用。若否，則連線失敗。
+3.  Server 建立 Controller 與 Display 的配對關係。
+4.  Server 將快取的命令集發送給 Controller。
+
+## 5. 資料結構定義
+
+### 5.1. 命令定義 (`command.json`)
+
+此檔案定義了 Display 可執行的所有命令，其內容應為一個 JSON 陣列，每個物件代表一個 UI 控制項。
+
+- **通用屬性**:
+    - `name` (string, required): 命令的唯一識別碼。
+    - `label` (string, required): 顯示在 UI 上的名稱。
+    - `type` (string, required): 控制項的類型。
+
+#### 控制項類型與範例
+
+`command.json` 支援以下幾種控制項類型：
+
+1.  **按鈕 (Button)**: 用於觸發一個無參數的動作。
+
+    - `type`: `"button"`
+
+2.  **文字輸入 (Text)**: 用於輸入單行文字。
+
+    - `type`: `"text"`
+    - `default` (string, optional): 預設值。
+    - `regex` (string, optional): 用於驗證輸入內容的正規表示式。
+
+3.  **數字輸入 (Number)**: 用於輸入整數或浮點數。
+
+    - `type`: `"number"`
+    - `default` (number, optional): 預設值。
+    - `min` (number, optional): 最小值。
+    - `max` (number, optional): 最大值。
+    - `step` (number, optional): 步進值（例如 `1` 代表整數，`0.1` 代表浮點數）。
+
+4.  **下拉選單 (Select)**: 用於從預設選項中選擇。
+
+    - `type`: `"select"`
+    - `options` (array, required): 選項陣列，每個物件包含 `label` 和 `value`。
+    - `default` (string | number, optional): 預設選項的 `value`。
+
+5.  **核取方塊 (Checkbox)**: 用於表示一個布林狀態（開/關）。
+    - `type`: `"checkbox"`
+    - `default` (boolean, optional): 預設的選中狀態 (`true` 或 `false`)。
+
+#### 完整範例
+
+```json
+[
+	{
+		"name": "play_pause",
+		"label": "播放/暫停",
+		"type": "button"
+	},
+	{
+		"name": "set_title",
+		"label": "設定標題",
+		"type": "text",
+		"default": "預設標題",
+		"regex": "^.{1,50}$"
+	},
+	{
+		"name": "set_volume",
+		"label": "音量",
+		"type": "number",
+		"default": 50,
+		"min": 0,
+		"max": 100,
+		"step": 1
+	},
+	{
+		"name": "set_speed",
+		"label": "播放速度",
+		"type": "number",
+		"default": 1.0,
+		"min": 0.5,
+		"max": 2.0,
+		"step": 0.1
+	},
+	{
+		"name": "select_quality",
+		"label": "畫質",
+		"type": "select",
+		"default": "720p",
+		"options": [
+			{ "label": "高畫質", "value": "1080p" },
+			{ "label": "中等畫質", "value": "720p" },
+			{ "label": "低畫質", "value": "480p" }
+		]
+	},
+	{
+		"name": "enable_loop",
+		"label": "循環播放",
+		"type": "checkbox",
+		"default": false
+	}
+]
+```
+
+### 5.2. WebSocket 訊息格式
+
+所有透過 WebSocket 傳輸的資料都應為 JSON 格式。
+
+- **通用結構**:
+
+    ```json
+    {
+    	"type": "<MessageType>",
+    	"payload": {}
+    }
+    ```
+
+- **訊息類型 (`MessageType`)**:
+
+    - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。
+    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。
+    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。
+    - `error` (Server -> Client): 伺服器發送的錯誤通知。
+
+- **範例**:
+    - **指令 (`command`)**:
+        ```json
+        {
+        	"type": "command",
+        	"payload": {
+        		"name": "set_volume",
+        		"args": {
+        			"level": 80
+        		}
+        	}
+        }
+        ```
+    - **狀態 (`status`)**:
+        ```json
+        {
+        	"type": "status",
+        	"payload": {
+        		"playback_state": "playing",
+        		"current_volume": 80
+        	}
+        }
+        ```
+
+## 6. 錯誤處理機制
+
+伺服器在遇到問題時，會透過 `error` 類型的 WebSocket 訊息通知客戶端。此訊息的 `payload` 將包含 `code`（錯誤碼）和 `message`（錯誤描述）。
+
+```json
+{
+	"type": "error",
+	"payload": {
+		"code": 1001,
+		"message": "Request is missing required query parameter: type"
+	}
 }
 ```
-# Control Definition
-```typescript
-type Control = {
-	id: string
-	type: 'button'
-	value: string
-} | {
-	id: string
-	type: 'number'
-	min?: number
-	max?: number
-	step?: number
-} | {
-	id: string
-	type: 'string'
-}
-```
 
-# 簡介
-須事先定義 app，app 是一堆 control 的集合，例如有按鈕、文字框、數字框等等。
-client 連線到 server 時可以主動提供預先分配好的 uuid，或是由伺服器指定，並且告訴伺服器他所屬於的 app，同時建立 websocket 連線。
-admin 透過手動輸入、QRCode 之類的機制取得 uuid 後，向 server 取得 app 設定，然後根據 app 設定顯示相應的控制 UI。
-admin 可以向 server 送出要控制哪個 client 的哪個 control，client 也可以主動向 server 更新某個狀態，然後由 server 向對這個 client 有連線的 admin 發送狀態更新。
-# 例子
-一個倒數計時網頁，client 只有一個大大的時間，剩下的控制界面都在 admin。
-## client
-```mermaid
-flowchart TD
+以下是系統中可能發生的錯誤及其代碼：
 
-A(["開啟 Client 頁面"]) --> B{"是否自備 UUID"}
+### 6.1. 連線錯誤 (1xxx)
 
-B -- 是 --> C@{ label: "<span style=\"color:\" color=\"\">POST /api/client/register</span><br style=\"box-sizing:\" color=\"\">{ app: app name, uuid: uuid }" }
+| Code   | Message                  | 說明                                                                               |
+| :----- | :----------------------- | :--------------------------------------------------------------------------------- |
+| `1001` | Invalid Query Parameters | 連線請求的查詢參數缺失或格式錯誤 (例如，缺少 `type`, `command_url`, `target_id`)。 |
+| `1002` | Invalid Client Type      | `type` 參數的值不是 `display` 或 `controller`。                                    |
 
-B -- 否 --> D@{ label: "<span style=\"padding-left:\"><span style=\"color:\" color=\"\">POST /api/client/register</span><br style=\"box-sizing:\" color=\"\">{ app: app name }</span>" }
+### 6.2. Display 註冊錯誤 (2xxx)
 
-C --> n1["UUID 是否可用"]
+| Code   | Message                 | 說明                                                                               |
+| :----- | :---------------------- | :--------------------------------------------------------------------------------- |
+| `2001` | Command URL Unreachable | 伺服器無法存取 Display 提供的 `command_url`。                                      |
+| `2002` | Invalid Command JSON    | 從 `command_url` 取得的內容不是有效的 JSON，或其結構不符合 `command.json` 的規範。 |
+| `2003` | Display ID Conflict     | Display 嘗試註冊的 `id` 已被另一個活躍的 Display 使用。                            |
 
-n1 -- 否 --> n2(["顯示錯誤訊息"])
+### 6.3. Controller 連線錯誤 (3xxx)
 
-n1 -- 是 --> n3>"GET /api/client/ws?uuid=uuid"]
+| Code   | Message                           | 說明                                                                |
+| :----- | :-------------------------------- | :------------------------------------------------------------------ |
+| `3001` | Target Display Not Found          | Controller 嘗試連線的 `target_id` 不存在或對應的 Display 不在線上。 |
+| `3002` | Target Display Already Controlled | 該 Display 已被另一個 Controller 控制（在目前的一對一模型下）。     |
 
-D --> n3
+### 6.4. 通訊錯誤 (4xxx)
 
-n3 --> n4(["開啟 Websocket 連線"])
-
-  
-
-C@{ shape: odd}
-
-D@{ shape: odd}
-
-n1@{ shape: decision}
-```
-client 建立 websocket 連線後註冊相關 control
-```
-client.on('start', timer.start)
-client.on('pause', timer.pause)
-client.on('restart', timer.restart)
-client.on('set', timer.set) // timer.set = (number) => void
-```
-接著 client 會自動在收到相對應的 websocket 請求時執行函數。另外當 `timer.start` 被執行時，會向 server 更新 `timer.time` `client.updateStatue({ time: timer.time, counting: true })`
-
-## admin
-admin 打開網頁後，建立一個 websocket 連線。然後輸入一個或多個 client 的 uuid，伺服器回傳 client 的 app 設定，接著顯示對應的控制畫面。並且在接收到 status 的通知時更新畫面。
-```mermaid
-flowchart TD
-
-subgraph s1["Websocket"]
-
-n5(["輸入 client uuid"])
-
-n6>"GET /api/client/{uuid}"]
-
-n7["根據回應更新 Control"]
-
-n8(["收到更新 type=status"])
-
-n9(["當觸發 name={name} 的 control<br>（可能有 value={value}）"])
-
-n10>"POST /api/client/{uuid}<br>{ name: name, value: value }"]
-
-end
-
-n1(["開啟 Admin 頁面"]) --> n2>"GET /api/admin/ws"]
-
-n2 --> n3["開啟 Websocket 連線"]
-
-n3 --> s1
-
-n5 --> n6
-
-n6 --> n7
-
-n9 --> n10
-
-n10 --> n7
-
-n8 --> n7
-
-n3@{ shape: rect}
-```
-# struct
-```mermaid
-classDiagram
-
-direction TB
-
-class App {
-
-name
-
-password
-
-controls
-
-}
-
-  
-
-class ButtonControl {
-
-name
-
-}
-
-  
-
-class TextControl {
-
-name
-
-regex
-
-}
-
-  
-
-class NumberControl {
-
-name
-
-min
-
-max
-
-int
-
-}
-
-  
-
-class Status {
-
-any
-
-}
-
-  
-
-class Client {
-
-app
-
-admins
-
-status
-
-Emit(name string, data any)
-
-Update(status Status)
-
-}
-
-  
-
-class Admin {
-
-clients
-
-Connect(clientID)
-
-Request(name string, value any)
-
-}
-
-  
-
-class Node {
-
-websocket
-
-id
-
-Send(data)
-
-On(event string, data any)
-
-}
-
-  
-
-<<Control>> ButtonControl
-
-<<Control>> TextControl
-
-<<Control>> NumberControl
-
-  
-
-Client "n" --|> "1" App
-
-Client --|> Status
-
-App --|> ButtonControl
-
-App --|> TextControl
-
-App --|> NumberControl
-
-Node --|> Admin : extends
-
-Node --|> Client : extends
-
-Admin <|--|> Client
-```
-```go
-type Admin struct {
-	id string // uuid
-	clients []Client
-}
-
-type Client struct {
-	id string // uuid
-	app *App
-}
-
-type App struct {
-	name string
-	password string
-	controls []Control
-}
-
-type Control struct {
-	name string
-	type string
-}
-```
+| Code   | Message                   | 說明                                                                                       |
+| :----- | :------------------------ | :----------------------------------------------------------------------------------------- |
+| `4001` | Invalid Message Format    | 客戶端發送的訊息不是有效的 JSON，或不符合 `{ "type": "...", "payload": ... }` 的基本結構。 |
+| `4002` | Unknown Command           | Controller 發送的指令名稱 (`name`) 不在 Display 的可用命令清單中。                         |
+| `4003` | Invalid Command Arguments | 指令所帶的參數無效（例如，資料類型錯誤、數值超出範圍等）。                                 |
