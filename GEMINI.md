@@ -1,1 +1,1 @@
-- 完成指令後，不需要幫我執行 git add git commit
+- after finish task, execute `git diff HEAD` and write commit message to commit.txt rather than doing `git commit` for me. You are not allow to deliver a git commit.

@@ -51,9 +51,6 @@ func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, c
 		if err != nil {
 			return "", fmt.Errorf("failed to generate unique display ID: %w", err)
 		}
-		// Send set_id message to the display
-		setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
-		uc.WebSocketService.SendMessage(displayID, "set_id", setIDPayload)
 	}
 
 	// Check for ID conflict (this check is still needed even with unique ID generation
@@ -81,7 +78,7 @@ type ControllerConnectionUseCase struct {
 }
 
 // Execute connects a controller to a target display.
-func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID string) (string, error) {
+func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID string) (string, *domain.Display, error) {
 	// Generate a temporary controller ID for error reporting before actual assignment
 	// This ID is not yet saved to the repository.
 	controllerIDCounter++
@@ -89,13 +86,13 @@ func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID st
 
 	if targetID == "" {
 		uc.WebSocketService.SendError(tempControllerID, domain.ErrInvalidQueryParams, "Missing required query parameter: target_id")
-		return "", fmt.Errorf("missing target_id")
+		return "", nil, fmt.Errorf("missing target_id")
 	}
 
 	display, found := uc.DisplayRepo.FindByID(targetID)
 	if !found {
 		uc.WebSocketService.SendError(tempControllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Target display '%s' not found or offline.", targetID))
-		return "", fmt.Errorf("target display not found: %s", targetID)
+		return "", nil, fmt.Errorf("target display not found: %s", targetID)
 	}
 
 	actualDisplay := display.(*domain.Display) // Type assertion
@@ -105,7 +102,7 @@ func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID st
 
 	if actualDisplay.Controller != nil {
 		uc.WebSocketService.SendError(tempControllerID, domain.ErrTargetDisplayAlreadyControlled, fmt.Sprintf("Display '%s' is already controlled by another client.", targetID))
-		return "", fmt.Errorf("target display already controlled: %s", targetID)
+		return "", nil, fmt.Errorf("target display already controlled: %s", targetID)
 	}
 
 	controllerIDCounter++
@@ -119,17 +116,7 @@ func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID st
 
 	log.Printf("Controller '%s' connected to Display '%s'.", controllerID, targetID)
 
-	// Send command list to controller
-	commandListMsgPayload := actualDisplay.CommandList
-	if err := uc.WebSocketService.SendMessage(controllerID, "command_list", commandListMsgPayload); err != nil {
-		log.Printf("Error sending command list to controller '%s': %v", controllerID, err)
-		// Clean up on send error
-		uc.ControllerRepo.Delete(controllerID)
-		actualDisplay.Controller = nil
-		return "", fmt.Errorf("failed to send command list: %w", err)
-	}
-
-	return controllerID, nil
+	return controllerID, actualDisplay, nil
 }
 
 // DisplayMessageHandlingUseCase handles messages received from a Display.

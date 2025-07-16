@@ -66,6 +66,14 @@ func handleDisplayConnection(deps *wsHandlerDependencies, conn *websocket.Conn, 
 		log.Printf("Display '%s' connection closed.", displayID)
 	}()
 
+	// Send set_id message to the display
+	setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
+	err = deps.wsGateway.SendMessage(displayID, "set_id", setIDPayload)
+	if err != nil {
+		log.Println("failed to send set_id: %w", err)
+		return
+	}
+
 	for {
 		_, p, err := deps.wsGateway.ReadMessage(conn)
 		if err != nil {
@@ -106,7 +114,7 @@ func handleControllerConnection(deps *wsHandlerDependencies, conn *websocket.Con
 	targetID := params.Get("target_id")
 
 	// Use the ControllerConnectionUseCase
-	controllerID, err := deps.controllerConnectionUC.Execute(conn, targetID)
+	controllerID, display, err := deps.controllerConnectionUC.Execute(conn, targetID)
 	if err != nil {
 		log.Printf("Controller connection failed: %v", err)
 		conn.Close()
@@ -119,6 +127,11 @@ func handleControllerConnection(deps *wsHandlerDependencies, conn *websocket.Con
 		conn.Close() // Ensure the connection is closed when handler exits
 		log.Printf("Controller '%s' connection closed.", controllerID)
 	}()
+
+	// Send command list to controller
+	commandListMsgPayload := display.CommandList
+	deps.wsGateway.SendMessage(controllerID, "command_list", commandListMsgPayload)
+	// TODO: handle error
 
 	for {
 		_, p, err := deps.wsGateway.ReadMessage(conn)
