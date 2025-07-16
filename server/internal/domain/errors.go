@@ -12,7 +12,7 @@ const (
 	ErrDisplayIDConflict     = 2003
 
 	// Controller Connection Errors (3xxx)
-	ErrTargetDisplayNotFound        = 3001
+	ErrTargetDisplayNotFound          = 3001
 	ErrTargetDisplayAlreadyControlled = 3002
 
 	// Communication Errors (4xxx)

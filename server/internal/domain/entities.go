@@ -15,6 +15,6 @@ type Display struct {
 
 // Controller represents a connected Controller client.
 type Controller struct {
-	ID          string
+	ID            string
 	TargetDisplay *Display // Pointer to the Display being controlled
 }

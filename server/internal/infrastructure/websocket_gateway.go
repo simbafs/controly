@@ -13,8 +13,8 @@ import (
 
 // GorillaWebSocketGateway implements application.WebSocketMessenger and handles WebSocket connections.
 type GorillaWebSocketGateway struct {
-	upgrader             websocket.Upgrader
-	displayConnections   sync.Map // map[string]*websocket.Conn (displayID -> conn)
+	upgrader              websocket.Upgrader
+	displayConnections    sync.Map // map[string]*websocket.Conn (displayID -> conn)
 	controllerConnections sync.Map // map[string]*websocket.Conn (controllerID -> conn)
 }
 
