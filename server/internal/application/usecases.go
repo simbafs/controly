@@ -105,7 +105,6 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 	log.Printf("Removed display '%s' from repository.", displayID)
 }
 
-
 // ControllerConnectionUseCase handles a new Controller connection.
 type ControllerConnectionUseCase struct {
 	DisplayRepo      DisplayRepository
@@ -180,7 +179,6 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 	uc.ControllerRepo.Delete(controllerID)
 	log.Printf("Removed controller '%s' from repository.", controllerID)
 }
-
 
 // DisplayMessageHandlingUseCase handles messages received from a Display.
 type DisplayMessageHandlingUseCase struct {

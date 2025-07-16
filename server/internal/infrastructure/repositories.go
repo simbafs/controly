@@ -32,6 +32,11 @@ func (r *InMemoryDisplayRepository) Delete(id string) {
 	r.displays.Delete(id)
 }
 
+// Range calls f for each key and value in the map.
+func (r *InMemoryDisplayRepository) Range(f func(key, value any) bool) {
+	r.displays.Range(f)
+}
+
 // InMemoryControllerRepository implements application.ControllerRepository for in-memory storage.
 type InMemoryControllerRepository struct {
 	controllers sync.Map // map[string]*domain.Controller
@@ -59,4 +64,9 @@ func (r *InMemoryControllerRepository) FindByID(id string) (*domain.Controller, 
 // Delete removes a controller by its ID.
 func (r *InMemoryControllerRepository) Delete(id string) {
 	r.controllers.Delete(id)
+}
+
+// Range calls f for each key and value in the map.
+func (r *InMemoryControllerRepository) Range(f func(key, value any) bool) {
+	r.controllers.Range(f)
 }

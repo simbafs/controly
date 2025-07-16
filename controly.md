@@ -26,16 +26,46 @@
 
 - **WebSocket 端點**: `ws://<server_address>/ws`
 
-### 3.2. 被控制器 (Display)
+### 3.2. RESTful API 端點
+
+除了 WebSocket 端點，伺服器也提供 RESTful API 以供查詢系統狀態。
+
+- **列出所有連線 (`GET /api/connections`)**:
+    - **目的**: 獲取目前所有活躍的 Display 和 Controller 連線，以及它們之間的控制關係。
+    - **回應範例**:
+    ```json
+    {
+      "displays": [
+        {
+          "id": "display-1",
+          "controlled_by": "controller-A"
+        },
+        {
+          "id": "display-2"
+        }
+      ],
+      "controllers": [
+        {
+          "id": "controller-A",
+          "controlling": "display-1"
+        },
+        {
+          "id": "controller-B"
+        }
+      ]
+    }
+    ```
+
+### 3.3. 被控制器 (Display)
 
 - **連線生命週期**:
     1.  **註冊**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=display`、`command_url` 以及選填的 `id`。
         - 範例: `ws://<server_address>/ws?type=display&command_url=https://example.com/commands.json&id=my-unique-display`
-    2.  **等待指令**: 成功註冊後，保持連線並監聽來自伺服器的 `command` 訊息。
-    3.  **狀態更新**: 可主動發送 `status` 訊息給伺服器，以同步其狀態至 Controller。
-    4.  **斷線**: 連線中斷時，伺服器會自動註銷其註冊。
+    2.  **等待指令**: 成功註冊後，保持連線並監聽來自伺服器的 `command` 訊息.
+    3.  **狀態更新**: 可主動發送 `status` 訊息給伺服器，以同步其狀態至 Controller.
+    4.  **斷線**: 連線中斷時，伺服器會自動註銷其註冊.
 
-### 3.3. 控制器 (Controller)
+### 3.4. 控制器 (Controller)
 
 - **連線生命週期**:
     1.  **請求控制**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=controller` 及 `target_id` (目標 Display 的 ID)。
