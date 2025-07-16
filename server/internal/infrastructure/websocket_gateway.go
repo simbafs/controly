@@ -47,7 +47,7 @@ func (g *GorillaWebSocketGateway) WriteMessage(conn *websocket.Conn, messageType
 }
 
 // RegisterDisplayConnection stores a display's WebSocket connection.
-func (g *GorillaWebSocketGateway) RegisterDisplayConnection(displayID string, conn *websocket.Conn) {
+func (g *GorillaWebSocketGateway) RegisterDisplayConnection(displayID string, conn any) {
 	g.displayConnections.Store(displayID, conn)
 }
 
@@ -57,7 +57,7 @@ func (g *GorillaWebSocketGateway) UnregisterDisplayConnection(displayID string) 
 }
 
 // RegisterControllerConnection stores a controller's WebSocket connection.
-func (g *GorillaWebSocketGateway) RegisterControllerConnection(controllerID string, conn *websocket.Conn) {
+func (g *GorillaWebSocketGateway) RegisterControllerConnection(controllerID string, conn any) {
 	g.controllerConnections.Store(controllerID, conn)
 }
 

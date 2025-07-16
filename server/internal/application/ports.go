@@ -31,6 +31,13 @@ type CommandFetcher interface {
 type WebSocketMessenger interface {
 	SendMessage(clientID string, msgType string, payload json.RawMessage) error
 	SendError(clientID string, code int, message string) error
-	// Add methods for managing connections, if needed by the application layer
-	// For now, connection management is handled by the infrastructure layer directly.
+}
+
+// WebSocketConnectionManager defines the interface for managing WebSocket connections from the application layer.
+type WebSocketConnectionManager interface {
+	RegisterDisplayConnection(displayID string, conn any)
+	UnregisterDisplayConnection(displayID string)
+	RegisterControllerConnection(controllerID string, conn any)
+	UnregisterControllerConnection(controllerID string)
+	SendError(clientID string, code int, message string) error
 }

@@ -22,11 +22,11 @@ type IDGenerator interface {
 type DisplayRegistrationUseCase struct {
 	DisplayRepo      DisplayRepository
 	CommandFetcher   CommandFetcher
-	WebSocketService WebSocketMessenger
+	WebSocketService WebSocketConnectionManager
 	IDGenerator      IDGenerator // New dependency
 }
 
-// Execute registers a new display.
+// Execute registers a new display and its connection.
 func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, commandURL string) (string, error) {
 	if commandURL == "" {
 		// We don't have a displayID yet, so we can't use it for SendError. Send to a placeholder.
@@ -53,8 +53,7 @@ func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, c
 		}
 	}
 
-	// Check for ID conflict (this check is still needed even with unique ID generation
-	// in case of external ID provision or race conditions, though less likely now)
+	// Check for ID conflict
 	if _, exists := uc.DisplayRepo.FindByID(displayID); exists {
 		uc.WebSocketService.SendError(displayID, domain.ErrDisplayIDConflict, fmt.Sprintf("Display ID '%s' is already in use.", displayID))
 		return "", fmt.Errorf("display ID conflict: %s", displayID)
@@ -65,22 +64,58 @@ func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, c
 		CommandList: commandData,
 	}
 	uc.DisplayRepo.Save(display)
+	uc.WebSocketService.RegisterDisplayConnection(display.ID, conn)
 
-	log.Printf("Display '%s' connected.", displayID)
+	log.Printf("Display '%s' connected and registered.", displayID)
 	return displayID, nil
 }
+
+// DisplayDisconnectionUseCase handles the disconnection of a Display.
+type DisplayDisconnectionUseCase struct {
+	DisplayRepo    DisplayRepository
+	ControllerRepo ControllerRepository
+	ConnManager    WebSocketConnectionManager
+}
+
+// Execute performs all cleanup tasks when a display disconnects.
+func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
+	// Unregister connection first
+	uc.ConnManager.UnregisterDisplayConnection(displayID)
+
+	// Clean up repositories
+	displayIface, found := uc.DisplayRepo.FindByID(displayID)
+	if !found {
+		// Already cleaned up, or never existed.
+		return
+	}
+
+	actualDisplay := displayIface.(*domain.Display)
+	actualDisplay.Mu.Lock()
+	if actualDisplay.Controller != nil {
+		controllerID := actualDisplay.Controller.ID
+		// Notify controller, unregister it, and delete it from repo
+		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, "Target display disconnected.")
+		uc.ConnManager.UnregisterControllerConnection(controllerID)
+		uc.ControllerRepo.Delete(controllerID)
+		actualDisplay.Controller = nil
+	}
+	actualDisplay.Mu.Unlock()
+
+	uc.DisplayRepo.Delete(displayID)
+	log.Printf("Removed display '%s' from repository.", displayID)
+}
+
 
 // ControllerConnectionUseCase handles a new Controller connection.
 type ControllerConnectionUseCase struct {
 	DisplayRepo      DisplayRepository
 	ControllerRepo   ControllerRepository
-	WebSocketService WebSocketMessenger
+	WebSocketService WebSocketConnectionManager
 }
 
-// Execute connects a controller to a target display.
+// Execute connects a controller to a target display and registers its connection.
 func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID string) (string, *domain.Display, error) {
 	// Generate a temporary controller ID for error reporting before actual assignment
-	// This ID is not yet saved to the repository.
 	controllerIDCounter++
 	tempControllerID := fmt.Sprintf("temp-controller-%d", controllerIDCounter)
 
@@ -113,11 +148,39 @@ func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID st
 	}
 	uc.ControllerRepo.Save(controller)
 	actualDisplay.Controller = controller
+	uc.WebSocketService.RegisterControllerConnection(controllerID, conn)
 
 	log.Printf("Controller '%s' connected to Display '%s'.", controllerID, targetID)
 
 	return controllerID, actualDisplay, nil
 }
+
+// ControllerDisconnectionUseCase handles the disconnection of a Controller.
+type ControllerDisconnectionUseCase struct {
+	ControllerRepo ControllerRepository
+	ConnManager    WebSocketConnectionManager
+}
+
+// Execute performs all cleanup tasks when a controller disconnects.
+func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
+	// Unregister connection first
+	uc.ConnManager.UnregisterControllerConnection(controllerID)
+
+	// Find the controller to get the target display
+	controller, found := uc.ControllerRepo.FindByID(controllerID)
+	if found && controller.TargetDisplay != nil {
+		// Release the display from being controlled
+		controller.TargetDisplay.Mu.Lock()
+		if controller.TargetDisplay.Controller == controller {
+			controller.TargetDisplay.Controller = nil
+		}
+		controller.TargetDisplay.Mu.Unlock()
+	}
+	// Delete the controller from the repository
+	uc.ControllerRepo.Delete(controllerID)
+	log.Printf("Removed controller '%s' from repository.", controllerID)
+}
+
 
 // DisplayMessageHandlingUseCase handles messages received from a Display.
 type DisplayMessageHandlingUseCase struct {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,7 +16,9 @@ import (
 // wsHandlerDependencies holds the dependencies for the wsHandler
 type wsHandlerDependencies struct {
 	displayRegistrationUC       *application.DisplayRegistrationUseCase
+	displayDisconnectionUC      *application.DisplayDisconnectionUseCase
 	controllerConnectionUC      *application.ControllerConnectionUseCase
+	controllerDisconnectionUC   *application.ControllerDisconnectionUseCase
 	displayMessageHandlingUC    *application.DisplayMessageHandlingUseCase
 	controllerMessageHandlingUC *application.ControllerMessageHandlingUseCase
 	wsGateway                   *infrastructure.GorillaWebSocketGateway
@@ -29,8 +30,7 @@ func wsHandler(deps *wsHandlerDependencies, w http.ResponseWriter, r *http.Reque
 		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
-	// Defer closing the connection here. Unregistering will happen in the specific handlers.
-	// defer conn.Close()
+	// The connection is closed by the respective handlers
 
 	params := r.URL.Query()
 	clientType := params.Get("type")
@@ -48,29 +48,28 @@ func wsHandler(deps *wsHandlerDependencies, w http.ResponseWriter, r *http.Reque
 }
 
 func handleDisplayConnection(deps *wsHandlerDependencies, conn *websocket.Conn, params url.Values) {
+	// Defer closing the connection to ensure it's always closed on exit.
+	defer conn.Close()
+
 	displayIDParam := params.Get("id")
 	commandURL := params.Get("command_url")
 
-	// Use the DisplayRegistrationUseCase
+	// Use case handles registration in both repo and gateway.
 	displayID, err := deps.displayRegistrationUC.Execute(conn, displayIDParam, commandURL)
 	if err != nil {
 		log.Printf("Display registration failed: %v", err)
-		conn.Close()
+		// No cleanup needed as registration failed before any state was stored.
 		return
 	}
 
-	deps.wsGateway.RegisterDisplayConnection(displayID, conn)
-	defer func() {
-		deps.wsGateway.UnregisterDisplayConnection(displayID)
-		conn.Close() // Ensure the connection is closed when handler exits
-		log.Printf("Display '%s' connection closed.", displayID)
-	}()
-
 	// Send set_id message to the display
 	setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
+	// Here we use wsGateway directly as it's a simple message send, could be a use case too.
 	err = deps.wsGateway.SendMessage(displayID, "set_id", setIDPayload)
 	if err != nil {
-		log.Println("failed to send set_id: %w", err)
+		log.Printf("Failed to send set_id to display '%s': %v", displayID, err)
+		// If we can't send the ID, the display is useless. Trigger disconnection logic.
+		deps.displayDisconnectionUC.Execute(displayID)
 		return
 	}
 
@@ -78,75 +77,47 @@ func handleDisplayConnection(deps *wsHandlerDependencies, conn *websocket.Conn, 
 		_, p, err := deps.wsGateway.ReadMessage(conn)
 		if err != nil {
 			log.Printf("Display '%s' disconnected: %v", displayID, err)
-			// Clean up display and associated controller on disconnect
-			displayIface, found := deps.displayRegistrationUC.DisplayRepo.FindByID(displayID)
-			if found {
-				actualDisplay := displayIface.(*domain.Display) // Type assertion
-				actualDisplay.Mu.Lock()
-				if actualDisplay.Controller != nil {
-					// Notify controller that display disconnected
-					deps.wsGateway.SendError(actualDisplay.Controller.ID, domain.ErrTargetDisplayNotFound, "Target display disconnected.")
-					deps.wsGateway.UnregisterControllerConnection(actualDisplay.Controller.ID)
-					deps.controllerConnectionUC.ControllerRepo.Delete(actualDisplay.Controller.ID)
-					actualDisplay.Controller = nil
-				}
-				actualDisplay.Mu.Unlock()
-				deps.displayRegistrationUC.DisplayRepo.Delete(displayID)
-			}
+			// A single call to the disconnection use case handles all cleanup.
+			deps.displayDisconnectionUC.Execute(displayID)
 			return
 		}
 
 		err = deps.displayMessageHandlingUC.Execute(displayID, p)
 		if err != nil {
 			log.Printf("Error handling display message from '%s': %v", displayID, err)
-			// Send error back to display if message format is invalid
-			var msg domain.WebSocketMessage
-			if json.Unmarshal(p, &msg) == nil && msg.Type != "status" { // Only send error if it's not a status message (which is expected)
-				deps.wsGateway.SendError(displayID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type or invalid format: %s", msg.Type))
-			} else if json.Unmarshal(p, &msg) != nil { // If unmarshalling itself failed
-				deps.wsGateway.SendError(displayID, domain.ErrInvalidMessageFormat, "Invalid message format.")
-			}
+			// Optionally send an error message back to the display
+			deps.wsGateway.SendError(displayID, domain.ErrInvalidMessageFormat, "Invalid message format or type.")
 		}
 	}
 }
 
 func handleControllerConnection(deps *wsHandlerDependencies, conn *websocket.Conn, params url.Values) {
+	defer conn.Close()
+
 	targetID := params.Get("target_id")
 
-	// Use the ControllerConnectionUseCase
+	// Use case handles connection and registration.
 	controllerID, display, err := deps.controllerConnectionUC.Execute(conn, targetID)
 	if err != nil {
 		log.Printf("Controller connection failed: %v", err)
-		conn.Close()
 		return
 	}
 
-	deps.wsGateway.RegisterControllerConnection(controllerID, conn)
-	defer func() {
-		deps.wsGateway.UnregisterControllerConnection(controllerID)
-		conn.Close() // Ensure the connection is closed when handler exits
-		log.Printf("Controller '%s' connection closed.", controllerID)
-	}()
-
 	// Send command list to controller
 	commandListMsgPayload := display.CommandList
-	deps.wsGateway.SendMessage(controllerID, "command_list", commandListMsgPayload)
-	// TODO: handle error
+	err = deps.wsGateway.SendMessage(controllerID, "command_list", commandListMsgPayload)
+	if err != nil {
+		log.Printf("Failed to send command_list to controller '%s': %v", controllerID, err)
+		deps.controllerDisconnectionUC.Execute(controllerID) // Cleanup
+		return
+	}
 
 	for {
 		_, p, err := deps.wsGateway.ReadMessage(conn)
 		if err != nil {
 			log.Printf("Controller '%s' disconnected: %v", controllerID, err)
-			// Clean up controller and release display
-			controller, found := deps.controllerConnectionUC.ControllerRepo.FindByID(controllerID)
-			if found && controller.TargetDisplay != nil {
-				controller.TargetDisplay.Mu.Lock()
-				if controller.TargetDisplay.Controller == controller {
-					controller.TargetDisplay.Controller = nil
-				}
-				controller.TargetDisplay.Mu.Unlock()
-			}
-			deps.controllerConnectionUC.ControllerRepo.Delete(controllerID)
+			// A single call to the disconnection use case handles all cleanup.
+			deps.controllerDisconnectionUC.Execute(controllerID)
 			return
 		}
 
@@ -154,14 +125,7 @@ func handleControllerConnection(deps *wsHandlerDependencies, conn *websocket.Con
 		if err != nil {
 			log.Printf("Error handling controller message from '%s': %v", controllerID, err)
 			// Send error back to controller
-			var msg domain.WebSocketMessage
-			if json.Unmarshal(p, &msg) == nil && msg.Type != "command" { // Only send error if it's not a command message (which is expected)
-				deps.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type or invalid format: %s", msg.Type))
-			} else if json.Unmarshal(p, &msg) != nil { // If unmarshalling itself failed
-				deps.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid message format.")
-			} else if msg.Type == "command" { // Specific error for command forwarding issues
-				deps.wsGateway.SendError(controllerID, domain.ErrInvalidCommandFormat, "Failed to forward command or no longer controlling display.")
-			}
+			deps.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid message format or type.")
 		}
 	}
 }
@@ -172,37 +136,49 @@ func main() {
 	controllerRepo := infrastructure.NewInMemoryControllerRepository()
 	commandFetcher := infrastructure.NewHTTPCommandFetcher()
 	wsGateway := infrastructure.NewGorillaWebSocketGateway()
-
-	// Initialize Use Cases
-	// Initialize ID Generator
 	idGenerator := infrastructure.NewBase58IDGenerator()
 
 	// Initialize Use Cases
 	displayRegistrationUC := &application.DisplayRegistrationUseCase{
 		DisplayRepo:      displayRepo,
 		CommandFetcher:   commandFetcher,
-		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+		WebSocketService: wsGateway,
 		IDGenerator:      idGenerator,
 	}
+
+	displayDisconnectionUC := &application.DisplayDisconnectionUseCase{
+		DisplayRepo:    displayRepo,
+		ControllerRepo: controllerRepo,
+		ConnManager:    wsGateway,
+	}
+
 	controllerConnectionUC := &application.ControllerConnectionUseCase{
 		DisplayRepo:      displayRepo,
 		ControllerRepo:   controllerRepo,
-		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+		WebSocketService: wsGateway,
 	}
+
+	controllerDisconnectionUC := &application.ControllerDisconnectionUseCase{
+		ControllerRepo: controllerRepo,
+		ConnManager:    wsGateway,
+	}
+
 	displayMessageHandlingUC := &application.DisplayMessageHandlingUseCase{
 		DisplayRepo:      displayRepo,
-		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+		WebSocketService: wsGateway,
 	}
 	controllerMessageHandlingUC := &application.ControllerMessageHandlingUseCase{
 		ControllerRepo:   controllerRepo,
-		DisplayRepo:      displayRepo, // Needed for display.Controller access in cleanup
-		WebSocketService: wsGateway,   // WebSocketGateway implements WebSocketMessenger
+		DisplayRepo:      displayRepo,
+		WebSocketService: wsGateway,
 	}
 
 	// Create dependencies struct for wsHandler
 	deps := &wsHandlerDependencies{
 		displayRegistrationUC:       displayRegistrationUC,
+		displayDisconnectionUC:      displayDisconnectionUC,
 		controllerConnectionUC:      controllerConnectionUC,
+		controllerDisconnectionUC:   controllerDisconnectionUC,
 		displayMessageHandlingUC:    displayMessageHandlingUC,
 		controllerMessageHandlingUC: controllerMessageHandlingUC,
 		wsGateway:                   wsGateway,
