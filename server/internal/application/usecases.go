@@ -180,6 +180,64 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 	log.Printf("Removed controller '%s' from repository.", controllerID)
 }
 
+// DeleteDisplayUseCase handles the deletion of a Display.
+type DeleteDisplayUseCase struct {
+	DisplayRepo    DisplayRepository
+	ControllerRepo ControllerRepository // New dependency
+	ConnManager    WebSocketConnectionManager
+}
+
+// Execute deletes a display and unregisters its connection.
+func (uc *DeleteDisplayUseCase) Execute(displayID string) error {
+	displayIface, found := uc.DisplayRepo.FindByID(displayID)
+	if !found {
+		return fmt.Errorf("display '%s' not found", displayID)
+	}
+
+	actualDisplay := displayIface.(*domain.Display)
+	actualDisplay.Mu.Lock()
+	if actualDisplay.Controller != nil {
+		controllerID := actualDisplay.Controller.ID
+		// Notify controller, unregister it, and delete it from repo
+		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, "Target display disconnected.") // Or a more specific error for deletion
+		uc.ConnManager.UnregisterControllerConnection(controllerID)
+		uc.ControllerRepo.Delete(controllerID)
+		actualDisplay.Controller = nil
+	}
+	actualDisplay.Mu.Unlock()
+
+	uc.ConnManager.UnregisterDisplayConnection(displayID)
+	uc.DisplayRepo.Delete(displayID)
+	log.Printf("Deleted display '%s' from repository.", displayID)
+	return nil
+}
+
+// DeleteControllerUseCase handles the deletion of a Controller.
+type DeleteControllerUseCase struct {
+	ControllerRepo ControllerRepository
+	ConnManager    WebSocketConnectionManager
+}
+
+// Execute deletes a controller and unregisters its connection.
+func (uc *DeleteControllerUseCase) Execute(controllerID string) error {
+	controller, found := uc.ControllerRepo.FindByID(controllerID)
+	if !found {
+		return fmt.Errorf("controller '%s' not found", controllerID)
+	}
+	// If the controller was controlling a display, release it
+	if controller.TargetDisplay != nil {
+		controller.TargetDisplay.Mu.Lock()
+		if controller.TargetDisplay.Controller == controller {
+			controller.TargetDisplay.Controller = nil
+		}
+		controller.TargetDisplay.Mu.Unlock()
+	}
+	uc.ConnManager.UnregisterControllerConnection(controllerID)
+	uc.ControllerRepo.Delete(controllerID)
+	log.Printf("Deleted controller '%s' from repository.", controllerID)
+	return nil
+}
+
 // DisplayMessageHandlingUseCase handles messages received from a Display.
 type DisplayMessageHandlingUseCase struct {
 	DisplayRepo      DisplayRepository

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
 	"github.com/simbafs/controly/server/internal/domain"
 	"github.com/simbafs/controly/server/internal/infrastructure" // Needed for type assertion to InMemoryDisplayRepository/InMemoryControllerRepository
@@ -84,4 +85,74 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error encoding connections response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
+}
+
+// DeleteDisplayHandler holds the dependency for the delete display API endpoint.
+type DeleteDisplayHandler struct {
+	DeleteDisplayUC *application.DeleteDisplayUseCase
+}
+
+// NewDeleteDisplayHandler creates a new DeleteDisplayHandler.
+func NewDeleteDisplayHandler(deleteDisplayUC *application.DeleteDisplayUseCase) *DeleteDisplayHandler {
+	return &DeleteDisplayHandler{
+		DeleteDisplayUC: deleteDisplayUC,
+	}
+}
+
+// ServeHTTP handles the DELETE /api/displays/{id} endpoint.
+func (h *DeleteDisplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing display ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.DeleteDisplayUC.Execute(id); err != nil {
+		log.Printf("Error deleting display %s: %v", id, err)
+		http.Error(w, err.Error(), http.StatusNotFound) // Assuming error indicates not found or internal issue
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteControllerHandler holds the dependency for the delete controller API endpoint.
+type DeleteControllerHandler struct {
+	DeleteControllerUC *application.DeleteControllerUseCase
+}
+
+// NewDeleteControllerHandler creates a new DeleteControllerHandler.
+func NewDeleteControllerHandler(deleteControllerUC *application.DeleteControllerUseCase) *DeleteControllerHandler {
+	return &DeleteControllerHandler{
+		DeleteControllerUC: deleteControllerUC,
+	}
+}
+
+// ServeHTTP handles the DELETE /api/controllers/{id} endpoint.
+func (h *DeleteControllerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Missing controller ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.DeleteControllerUC.Execute(id); err != nil {
+		log.Printf("Error deleting controller %s: %v", id, err)
+		http.Error(w, err.Error(), http.StatusNotFound) // Assuming error indicates not found or internal issue
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

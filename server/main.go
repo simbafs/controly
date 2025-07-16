@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
 	"github.com/simbafs/controly/server/internal/delivery" // New import
 	"github.com/simbafs/controly/server/internal/infrastructure"
@@ -63,6 +64,17 @@ func main() {
 		WebSocketService: wsGateway,
 	}
 
+	// New delete use cases
+	deleteDisplayUC := &application.DeleteDisplayUseCase{
+		DisplayRepo: displayRepo,
+		ControllerRepo: controllerRepo,
+		ConnManager: wsGateway,
+	}
+	deleteControllerUC := &application.DeleteControllerUseCase{
+		ControllerRepo: controllerRepo,
+		ConnManager:    wsGateway,
+	}
+
 	// Create dependencies struct for wsHandler
 	wsHandler := delivery.NewWsHandler(
 		displayRegistrationUC,
@@ -73,15 +85,28 @@ func main() {
 		controllerMessageHandlingUC,
 		wsGateway,
 	)
-	http.Handle("/ws", wsHandler)
 
-	// New: Initialize ConnectionsHandler and register its method
+	// Initialize ConnectionsHandler
 	connectionsHandler := delivery.NewConnectionsHandler(
 		displayRepo,
 		controllerRepo,
 	)
-	http.Handle("/api/connections", connectionsHandler)
+
+	// Initialize Delete Handlers
+	deleteDisplayHandler := delivery.NewDeleteDisplayHandler(deleteDisplayUC)
+	deleteControllerHandler := delivery.NewDeleteControllerHandler(deleteControllerUC)
+
+	// Setup router
+	router := mux.NewRouter()
+
+	// Register WebSocket route
+	router.Handle("/ws", wsHandler)
+
+	// Register REST API routes
+	router.Handle("/api/connections", connectionsHandler).Methods("GET")
+	router.Handle("/api/displays/{id}", deleteDisplayHandler).Methods("DELETE")
+	router.Handle("/api/controllers/{id}", deleteControllerHandler).Methods("DELETE")
 
 	log.Println("Relay Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", router))
 }

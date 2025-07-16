@@ -56,6 +56,14 @@
     }
     ```
 
+- **刪除指定 Display (`DELETE /api/displays/{id}`)**:
+    - **目的**: 刪除指定 ID 的 Display 連線及其相關資料。如果該 Display 正在被 Controller 控制，則該 Controller 的控制關係也會被解除。
+    - **回應**: 成功時返回 `204 No Content`，如果 Display 不存在則返回 `404 Not Found`。
+
+- **刪除指定 Controller (`DELETE /api/controllers/{id}`)**:
+    - **目的**: 刪除指定 ID 的 Controller 連線及其相關資料。如果該 Controller 正在控制某個 Display，則該 Display 的控制關係也會被解除。
+    - **回應**: 成功時返回 `204 No Content`，如果 Controller 不存在則返回 `404 Not Found`。
+
 ### 3.3. 被控制器 (Display)
 
 - **連線生命週期**:
