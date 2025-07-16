@@ -1,0 +1,15 @@
+[
+	{
+		"name": "set_title",
+		"label": "設定標題",
+		"type": "text",
+		"default": "預設標題",
+		"regex": "^.{1,50}$"
+	},
+	{
+		"name": "enable_loop",
+		"label": "循環播放",
+		"type": "checkbox",
+		"default": false
+	}
+]

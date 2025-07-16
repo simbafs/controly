@@ -1,0 +1,16 @@
+[
+	{
+		"name": "play_pause",
+		"label": "播放/暫停",
+		"type": "button"
+	},
+	{
+		"name": "set_volume",
+		"label": "音量",
+		"type": "number",
+		"default": 50,
+		"min": 0,
+		"max": 100,
+		"step": 1
+	}
+]

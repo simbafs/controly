@@ -1,0 +1,1 @@
+- 完成指令後，不需要幫我執行 git add git commit

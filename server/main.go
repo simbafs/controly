@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -142,14 +143,13 @@ func handleDisplayConnection(conn *websocket.Conn, params url.Values) {
 	mu.Lock()
 	if displayID == "" {
 		// Generate UUID for displayID if not provided
-		// For simplicity, using a basic counter for now. In a real app, use a UUID library.
-		displayID = fmt.Sprintf("display-%d", len(displays)+1)
-		for {
-			if _, exists := displays[displayID]; exists {
-				displayID = fmt.Sprintf("display-%d", len(displays)+1)
-			} else {
-				break
-			}
+		displayID = uuid.New().String()
+		// Send set_id message to the display
+		setIDPayload, _ := json.Marshal(map[string]string{"id": displayID}) // Payload is a JSON object with "id" key
+		setIDMsg := WebSocketMessage{Type: "set_id", Payload: setIDPayload}
+		if err := conn.WriteJSON(setIDMsg); err != nil {
+			log.Printf("Error sending set_id message to new display: %v", err)
+			// Consider closing connection if this critical message fails
 		}
 	} else {
 		if _, exists := displays[displayID]; exists {
