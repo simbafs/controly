@@ -19,7 +19,7 @@
 - **職責**:
 
     - **連線管理**: 維護與所有 Display 和 Controller 的 WebSocket 連線。
-    - **ID 管理**: 為每個 Display 分配一個全域唯一的 ID。支援客戶端指定 ID，並在 ID 衝突時拒絕連線。若未提供 ID，伺服器將自動生成一個 UUID。
+    - **ID 管理**: 為每個 Display 分配一個全域唯一的 ID。支援客戶端指定 ID，並在 ID 衝突時拒絕連線。若未提供 ID，伺服器將自動生成一個 8 個字元的 Base58 編碼 ID (不包含容易混淆的字元，例如 O, 0, l, I)。
     - **命令快取**: Display 連線時，伺服器會擷取並快取其 `command.json` 的內容，供後續的 Controller 查詢。
     - **訊息路由**: 根據訊息的目標 ID，準確地在 Controller 和 Display 之間轉發 `command` 與 `status` 訊息。
     - **配對管理**: 維護 Controller 與 Display 之間的控制關係。目前系統的設計為一對一配對，即一個 Display 同一時間只能被一個 Controller 控制。未來的版本將考慮支援多對多關係，允許一個 Controller 同時控制多個 Display，或一個 Display 同時接收多個 Controller 的指令。

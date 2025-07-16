@@ -3,305 +3,202 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
+	"github.com/simbafs/controly/server/internal/application"
+	"github.com/simbafs/controly/server/internal/domain"
+	"github.com/simbafs/controly/server/internal/infrastructure"
 )
 
-// Error Codes
-const (
-	// Connection Errors (1xxx)
-	ErrInvalidQueryParams = 1001
-	ErrInvalidClientType  = 1002
-
-	// Display Registration Errors (2xxx)
-	ErrCommandURLUnreachable = 2001
-	ErrInvalidCommandJSON    = 2002
-	ErrDisplayIDConflict     = 2003
-
-	// Controller Connection Errors (3xxx)
-	ErrTargetDisplayNotFound        = 3001
-	ErrTargetDisplayAlreadyControlled = 3002
-
-	// Communication Errors (4xxx)
-	ErrInvalidMessageFormat = 4001
-	ErrUnknownCommand       = 4002
-	ErrInvalidCommandArgs   = 4003
-)
-
-// WebSocketMessage represents the generic WebSocket message format
-type WebSocketMessage struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+// wsHandlerDependencies holds the dependencies for the wsHandler
+type wsHandlerDependencies struct {
+	displayRegistrationUC       *application.DisplayRegistrationUseCase
+	controllerConnectionUC      *application.ControllerConnectionUseCase
+	displayMessageHandlingUC    *application.DisplayMessageHandlingUseCase
+	controllerMessageHandlingUC *application.ControllerMessageHandlingUseCase
+	wsGateway                   *infrastructure.GorillaWebSocketGateway
 }
 
-// ErrorPayload represents the payload for an error message
-type ErrorPayload struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// Command represents a single command definition from command.json
-// DisplayClient represents a connected Display
-type DisplayClient struct {
-	ID          string
-	Conn        *websocket.Conn
-	CommandList json.RawMessage // Store raw command.json content
-	Controller  *ControllerClient // Pointer to the controlling Controller, if any
-	mu          sync.Mutex        // Mutex to protect access to Controller
-}
-
-// ControllerClient represents a connected Controller
-type ControllerClient struct {
-	ID          string
-	Conn        *websocket.Conn
-	TargetDisplay *DisplayClient // Pointer to the Display being controlled
-}
-
-var (
-	upgrader = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for now
-		},
-	}
-
-	displays    = make(map[string]*DisplayClient)
-	controllers = make(map[string]*ControllerClient)
-	mu          sync.Mutex // Mutex to protect displays and controllers maps
-)
-
-func sendError(conn *websocket.Conn, code int, message string) {
-	payload, _ := json.Marshal(ErrorPayload{Code: code, Message: message})
-	msg := WebSocketMessage{Type: "error", Payload: payload}
-	if err := conn.WriteJSON(msg); err != nil {
-		log.Printf("Error sending error message: %v", err)
-	}
-}
-
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func wsHandler(deps *wsHandlerDependencies, w http.ResponseWriter, r *http.Request) {
+	conn, err := deps.wsGateway.Upgrade(w, r)
 	if err != nil {
 		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
-	defer conn.Close()
+	// Defer closing the connection here. Unregistering will happen in the specific handlers.
+	// defer conn.Close()
 
 	params := r.URL.Query()
 	clientType := params.Get("type")
 
 	switch clientType {
 	case "display":
-		handleDisplayConnection(conn, params)
+		handleDisplayConnection(deps, conn, params)
 	case "controller":
-		handleControllerConnection(conn, params)
+		handleControllerConnection(deps, conn, params)
 	default:
-		sendError(conn, ErrInvalidClientType, "Invalid client type. Must be 'display' or 'controller'.")
+		deps.wsGateway.SendError("", domain.ErrInvalidClientType, "Invalid client type. Must be 'display' or 'controller'.")
+		conn.Close()
 		return
 	}
 }
 
-func handleDisplayConnection(conn *websocket.Conn, params url.Values) {
-	displayID := params.Get("id")
+func handleDisplayConnection(deps *wsHandlerDependencies, conn *websocket.Conn, params url.Values) {
+	displayIDParam := params.Get("id")
 	commandURL := params.Get("command_url")
 
-	if commandURL == "" {
-		sendError(conn, ErrInvalidQueryParams, "Missing required query parameter: command_url")
-		return
-	}
-
-	// Fetch and parse command.json
-	resp, err := http.Get(commandURL)
+	// Use the DisplayRegistrationUseCase
+	displayID, err := deps.displayRegistrationUC.Execute(conn, displayIDParam, commandURL)
 	if err != nil {
-		sendError(conn, ErrCommandURLUnreachable, fmt.Sprintf("Failed to fetch command URL: %v", err))
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		sendError(conn, ErrCommandURLUnreachable, fmt.Sprintf("Command URL returned status code: %d", resp.StatusCode))
+		log.Printf("Display registration failed: %v", err)
+		conn.Close()
 		return
 	}
 
-	commandData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		sendError(conn, ErrInvalidCommandJSON, fmt.Sprintf("Failed to read command JSON: %v", err))
-		return
-	}
-	// Basic validation: check if it's valid JSON
-	if !json.Valid(commandData) {
-		sendError(conn, ErrInvalidCommandJSON, "Invalid command JSON format.")
-		return
-	}
-
-	mu.Lock()
-	if displayID == "" {
-		// Generate UUID for displayID if not provided
-		displayID = uuid.New().String()
-		// Send set_id message to the display
-		setIDPayload, _ := json.Marshal(map[string]string{"id": displayID}) // Payload is a JSON object with "id" key
-		setIDMsg := WebSocketMessage{Type: "set_id", Payload: setIDPayload}
-		if err := conn.WriteJSON(setIDMsg); err != nil {
-			log.Printf("Error sending set_id message to new display: %v", err)
-			// Consider closing connection if this critical message fails
-		}
-	} else {
-		if _, exists := displays[displayID]; exists {
-			mu.Unlock()
-			sendError(conn, ErrDisplayIDConflict, fmt.Sprintf("Display ID '%s' is already in use.", displayID))
-			return
-		}
-	}
-
-	display := &DisplayClient{
-		ID:          displayID,
-		Conn:        conn,
-		CommandList: commandData,
-	}
-	displays[displayID] = display
-	mu.Unlock()
-
-	log.Printf("Display '%s' connected.", displayID)
-
-	// Send success message (optional, but good for confirmation)
-	// For now, just log and proceed. The spec doesn't explicitly define a success message for display registration.
+	deps.wsGateway.RegisterDisplayConnection(displayID, conn)
+	defer func() {
+		deps.wsGateway.UnregisterDisplayConnection(displayID)
+		conn.Close() // Ensure the connection is closed when handler exits
+		log.Printf("Display '%s' connection closed.", displayID)
+	}()
 
 	for {
-		_, p, err := conn.ReadMessage()
+		_, p, err := deps.wsGateway.ReadMessage(conn)
 		if err != nil {
 			log.Printf("Display '%s' disconnected: %v", displayID, err)
-			mu.Lock()
-			delete(displays, displayID)
-			// If this display was controlled, disconnect the controller
-			if display.Controller != nil {
-				display.Controller.TargetDisplay = nil
-				delete(controllers, display.Controller.ID) // Remove controller from map
-				sendError(display.Controller.Conn, ErrTargetDisplayNotFound, "Target display disconnected.")
-				display.Controller.Conn.Close()
+			// Clean up display and associated controller on disconnect
+			displayIface, found := deps.displayRegistrationUC.DisplayRepo.FindByID(displayID)
+			if found {
+				actualDisplay := displayIface.(*domain.Display) // Type assertion
+				actualDisplay.Mu.Lock()
+				if actualDisplay.Controller != nil {
+					// Notify controller that display disconnected
+					deps.wsGateway.SendError(actualDisplay.Controller.ID, domain.ErrTargetDisplayNotFound, "Target display disconnected.")
+					deps.wsGateway.UnregisterControllerConnection(actualDisplay.Controller.ID)
+					deps.controllerConnectionUC.ControllerRepo.Delete(actualDisplay.Controller.ID)
+					actualDisplay.Controller = nil
+				}
+				actualDisplay.Mu.Unlock()
+				deps.displayRegistrationUC.DisplayRepo.Delete(displayID)
 			}
-			mu.Unlock()
 			return
 		}
 
-		var msg WebSocketMessage
-		if err := json.Unmarshal(p, &msg); err != nil {
-			sendError(conn, ErrInvalidMessageFormat, "Invalid message format.")
-			continue
-		}
-
-		if msg.Type == "status" {
-			display.mu.Lock()
-			if display.Controller != nil {
-				if err := display.Controller.Conn.WriteMessage(websocket.TextMessage, p); err != nil {
-					log.Printf("Error forwarding status to controller for display '%s': %v", displayID, err)
-				}
+		err = deps.displayMessageHandlingUC.Execute(displayID, p)
+		if err != nil {
+			log.Printf("Error handling display message from '%s': %v", displayID, err)
+			// Send error back to display if message format is invalid
+			var msg domain.WebSocketMessage
+			if json.Unmarshal(p, &msg) == nil && msg.Type != "status" { // Only send error if it's not a status message (which is expected)
+				deps.wsGateway.SendError(displayID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type or invalid format: %s", msg.Type))
+			} else if json.Unmarshal(p, &msg) != nil { // If unmarshalling itself failed
+				deps.wsGateway.SendError(displayID, domain.ErrInvalidMessageFormat, "Invalid message format.")
 			}
-			display.mu.Unlock()
-		} else {
-			sendError(conn, ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type from display: %s", msg.Type))
 		}
 	}
 }
 
-func handleControllerConnection(conn *websocket.Conn, params url.Values) {
+func handleControllerConnection(deps *wsHandlerDependencies, conn *websocket.Conn, params url.Values) {
 	targetID := params.Get("target_id")
 
-	if targetID == "" {
-		sendError(conn, ErrInvalidQueryParams, "Missing required query parameter: target_id")
+	// Use the ControllerConnectionUseCase
+	controllerID, err := deps.controllerConnectionUC.Execute(conn, targetID)
+	if err != nil {
+		log.Printf("Controller connection failed: %v", err)
+		conn.Close()
 		return
 	}
 
-	mu.Lock()
-	display, found := displays[targetID]
-	if !found {
-		mu.Unlock()
-		sendError(conn, ErrTargetDisplayNotFound, fmt.Sprintf("Target display '%s' not found or offline.", targetID))
-		return
-	}
-
-	display.mu.Lock()
-	if display.Controller != nil {
-		display.mu.Unlock()
-		mu.Unlock()
-		sendError(conn, ErrTargetDisplayAlreadyControlled, fmt.Sprintf("Display '%s' is already controlled by another client.", targetID))
-		return
-	}
-
-	controllerID := fmt.Sprintf("controller-%d", len(controllers)+1) // Simple ID generation
-	controller := &ControllerClient{
-		ID:          controllerID,
-		Conn:        conn,
-		TargetDisplay: display,
-	}
-	controllers[controllerID] = controller
-	display.Controller = controller
-	display.mu.Unlock()
-	mu.Unlock()
-
-	log.Printf("Controller '%s' connected to Display '%s'.", controllerID, targetID)
-
-	// Send command list to controller
-	commandListMsg := WebSocketMessage{Type: "command_list", Payload: display.CommandList}
-	if err := conn.WriteJSON(commandListMsg); err != nil {
-		log.Printf("Error sending command list to controller '%s': %v", controllerID, err)
-		// Consider disconnecting controller if this fails
-		mu.Lock()
-		display.mu.Lock()
-		display.Controller = nil
-		delete(controllers, controllerID)
-		display.mu.Unlock()
-		mu.Unlock()
-		return
-	}
+	deps.wsGateway.RegisterControllerConnection(controllerID, conn)
+	defer func() {
+		deps.wsGateway.UnregisterControllerConnection(controllerID)
+		conn.Close() // Ensure the connection is closed when handler exits
+		log.Printf("Controller '%s' connection closed.", controllerID)
+	}()
 
 	for {
-		_, p, err := conn.ReadMessage()
+		_, p, err := deps.wsGateway.ReadMessage(conn)
 		if err != nil {
 			log.Printf("Controller '%s' disconnected: %v", controllerID, err)
-			mu.Lock()
-			display.mu.Lock()
-			if display.Controller == controller { // Only clear if this controller was the active one
-				display.Controller = nil
+			// Clean up controller and release display
+			controller, found := deps.controllerConnectionUC.ControllerRepo.FindByID(controllerID)
+			if found && controller.TargetDisplay != nil {
+				controller.TargetDisplay.Mu.Lock()
+				if controller.TargetDisplay.Controller == controller {
+					controller.TargetDisplay.Controller = nil
+				}
+				controller.TargetDisplay.Mu.Unlock()
 			}
-			delete(controllers, controllerID)
-			display.mu.Unlock()
-			mu.Unlock()
+			deps.controllerConnectionUC.ControllerRepo.Delete(controllerID)
 			return
 		}
 
-		var msg WebSocketMessage
-		if err := json.Unmarshal(p, &msg); err != nil {
-			sendError(conn, ErrInvalidMessageFormat, "Invalid message format.")
-			continue
-		}
-
-		if msg.Type == "command" {
-			// Validate command against display's command list (basic validation for now)
-			// Forward command to display directly without validation
-			display.mu.Lock()
-			if display.Controller == controller { // Only forward if this controller is still active
-				if err := display.Conn.WriteMessage(websocket.TextMessage, p); err != nil {
-					log.Printf("Error forwarding command to display '%s': %v", targetID, err)
-					// Consider disconnecting controller if display connection is bad
-				}
-			} else {
-				sendError(conn, ErrTargetDisplayAlreadyControlled, "You are no longer controlling this display.")
+		err = deps.controllerMessageHandlingUC.Execute(controllerID, p)
+		if err != nil {
+			log.Printf("Error handling controller message from '%s': %v", controllerID, err)
+			// Send error back to controller
+			var msg domain.WebSocketMessage
+			if json.Unmarshal(p, &msg) == nil && msg.Type != "command" { // Only send error if it's not a command message (which is expected)
+				deps.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type or invalid format: %s", msg.Type))
+			} else if json.Unmarshal(p, &msg) != nil { // If unmarshalling itself failed
+				deps.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid message format.")
+			} else if msg.Type == "command" { // Specific error for command forwarding issues
+				deps.wsGateway.SendError(controllerID, domain.ErrInvalidCommandFormat, "Failed to forward command or no longer controlling display.")
 			}
-			display.mu.Unlock()
-		} else {
-			sendError(conn, ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type from controller: %s", msg.Type))
 		}
 	}
 }
 
 func main() {
-	http.HandleFunc("/ws", wsHandler)
+	// Initialize Infrastructure Adapters
+	displayRepo := infrastructure.NewInMemoryDisplayRepository()
+	controllerRepo := infrastructure.NewInMemoryControllerRepository()
+	commandFetcher := infrastructure.NewHTTPCommandFetcher()
+	wsGateway := infrastructure.NewGorillaWebSocketGateway()
+
+	// Initialize Use Cases
+	// Initialize ID Generator
+	idGenerator := infrastructure.NewBase58IDGenerator()
+
+	// Initialize Use Cases
+	displayRegistrationUC := &application.DisplayRegistrationUseCase{
+		DisplayRepo:      displayRepo,
+		CommandFetcher:   commandFetcher,
+		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+		IDGenerator:      idGenerator,
+	}
+	controllerConnectionUC := &application.ControllerConnectionUseCase{
+		DisplayRepo:      displayRepo,
+		ControllerRepo:   controllerRepo,
+		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+	}
+	displayMessageHandlingUC := &application.DisplayMessageHandlingUseCase{
+		DisplayRepo:      displayRepo,
+		WebSocketService: wsGateway, // WebSocketGateway implements WebSocketMessenger
+	}
+	controllerMessageHandlingUC := &application.ControllerMessageHandlingUseCase{
+		ControllerRepo:   controllerRepo,
+		DisplayRepo:      displayRepo, // Needed for display.Controller access in cleanup
+		WebSocketService: wsGateway,   // WebSocketGateway implements WebSocketMessenger
+	}
+
+	// Create dependencies struct for wsHandler
+	deps := &wsHandlerDependencies{
+		displayRegistrationUC:       displayRegistrationUC,
+		controllerConnectionUC:      controllerConnectionUC,
+		displayMessageHandlingUC:    displayMessageHandlingUC,
+		controllerMessageHandlingUC: controllerMessageHandlingUC,
+		wsGateway:                   wsGateway,
+	}
+
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		wsHandler(deps, w, r)
+	})
+
 	log.Println("Relay Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
