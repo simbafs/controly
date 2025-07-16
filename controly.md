@@ -249,3 +249,77 @@
 	}
 ]
 ```
+
+# flowchart
+
+```mermaid
+flowchart TD
+ subgraph subGraph0["Server Entry"]
+        B@{ label: "Client 'type' param?" }
+        A["GET /ws"]
+  end
+ subgraph DisplayPath["Display Registration"]
+        D1@{ label: "Has 'id' param?" }
+        D2{"ID exists?"}
+        D3["Generate unique ID"]
+        RejectIDConflict(["Reject: ID Conflict"])
+        D4["Use provided ID"]
+        D5{"Fetch command_url"}
+        RejectURL(["Reject: URL Unreachable"])
+        D6{"Valid JSON?"}
+        RejectJSON(["Reject: Invalid JSON"])
+        D7["Store Display in repo"]
+        D8@{ label: "Send 'set_id' message" }
+        D9("Listen for messages")
+  end
+ subgraph ControllerPath["Controller Connection"]
+        C1@{ label: "Has 'target_id' param?" }
+        RejectNoTarget(["Reject: Missing target_id"])
+        C2{"Find Display by ID"}
+        RejectNotFound(["Reject: Not Found"])
+        C3{"Display already controlled?"}
+        RejectControlled(["Reject: Already Controlled"])
+        C4["Link Controller & Display"]
+        C5@{ label: "Send 'command_list'" }
+        C6("Listen for messages")
+  end
+ subgraph subGraph3["Message Forwarding & Disconnect"]
+        F1["Forward to Controller"]
+        F2["Forward to Display"]
+        F3["Cleanup Display & Notify Controller"]
+        F4["Cleanup Controller"]
+  end
+    A --> B
+    B -- 'display' --> DisplayPath
+    B -- 'controller' --> ControllerPath
+    B -- other --> RejectInvalidType(["Reject: Invalid Type"])
+    D1 -- Yes --> D2
+    D1 -- No --> D3
+    D2 -- Yes --> RejectIDConflict
+    D2 -- No --> D4
+    D3 --> D5
+    D4 --> D5
+    D5 -- Fails --> RejectURL
+    D5 -- Success --> D6
+    D6 -- No --> RejectJSON
+    D6 -- Yes --> D7
+    D7 --> D8
+    D8 --> D9
+    C1 -- No --> RejectNoTarget
+    C1 -- Yes --> C2
+    C2 -- Not Found --> RejectNotFound
+    C2 -- Found --> C3
+    C3 -- Yes --> RejectControlled
+    C3 -- No --> C4
+    C4 --> C5
+    C5 --> C6
+    D9 -- 'status' received --> F1
+    C6 -- 'command' received --> F2
+    D9 -- Disconnect --> F3
+    C6 -- Disconnect --> F4
+    B@{ shape: diamond}
+    D1@{ shape: diamond}
+    D8@{ shape: rect}
+    C1@{ shape: diamond}
+    C5@{ shape: rect}
+```
