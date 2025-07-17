@@ -1,8 +1,8 @@
-# Controly 專案詳細規劃
+# Controly 專案詳細規劃 (多對多模型)
 
 ## 1. 系統目標與範疇
 
-本專案旨在建立一個高效率、低延遲的即時通訊中繼系統。此系統允許「控制器 (Controller)」透過中介的「伺服器 (Server)」來探索並操作遠端的「被控制器 (Display)」。系統核心功能為命令的轉發與狀態的同步，所有通訊將基於 WebSocket 協議，以確保雙向即時互動。
+本專案旨在建立一個高效率、低延遲的即時通訊中繼系統。此系統允許「控制器 (Controller)」透過中介的「伺服器 (Server)」來探索並操作一個或多個遠端的「被控制器 (Display)」。同時，一個 Display 也能夠接收來自多個 Controller 的指令。系統核心功能為命令的轉發與狀態的同步，所有通訊將基於 WebSocket 協議，以確保雙向即時互動。
 
 ## 2. 系統架構
 
@@ -10,7 +10,7 @@
 
 - **中繼伺服器 (Relay Server)**：作為通訊中樞，負責管理所有連線、驗證身份、儲存 Display 的命令集、並在 Controller 與 Display 之間安全地轉發訊息。
 - **被控制器 (Display)**：任何需要被遠端操作的客戶端。它會定義一組可執行的命令，並透過 WebSocket 連線到伺服器進行註冊，等待來自 Controller 的指令。
-- **控制器 (Controller)**：任何需要發起遠端操作的客戶端。它會向伺服器請求控制指定的 Display，接收其可用命令列表，並發送指令。
+- **控制器 (Controller)**：任何需要發起遠端操作的客戶端。它會向伺服器請求控制一個或多個 Display，接收其可用命令列表，並發送指令。
 
 ## 3. 核心組件詳述
 
@@ -19,10 +19,10 @@
 - **職責**:
 
     - **連線管理**: 維護與所有 Display 和 Controller 的 WebSocket 連線。
-    - **ID 管理**: 為每個 Display 分配一個全域唯一的 ID。支援客戶端指定 ID，並在 ID 衝突時拒絕連線。若未提供 ID，伺服器將自動生成一個 8 個字元的 Base58 編碼 ID (不包含容易混淆的字元，例如 O, 0, l, I)。
+    - **ID 管理**: 為每個 Display 和 Controller 分配一個全域唯一的 ID。支援客戶端指定 ID，並在 ID 衝突時拒絕連線。若未提供 ID，伺服器將自動生成一個 8 個字元的 Base58 編碼 ID。
     - **命令快取**: Display 連線時，伺服器會擷取並快取其 `command.json` 的內容，供後續的 Controller 查詢。
     - **訊息路由**: 根據訊息的目標 ID，準確地在 Controller 和 Display 之間轉發 `command` 與 `status` 訊息。
-    - **配對管理**: 維護 Controller 與 Display 之間的控制關係。目前系統的設計為一對一配對，即一個 Display 同一時間只能被一個 Controller 控制。未來的版本將考慮支援多對多關係，允許一個 Controller 同時控制多個 Display，或一個 Display 同時接收多個 Controller 的指令。
+    - **訂閱管理 (Subscription Management)**: 維護 Controller 與 Display 之間的訂閱關係。一個 Controller 可以訂閱多個 Display，一個 Display 也可以被多個 Controller 訂閱。
 
 - **WebSocket 端點**: `ws://<server_address>/ws`
 
@@ -31,58 +31,64 @@
 除了 WebSocket 端點，伺服器也提供 RESTful API 以供查詢系統狀態。
 
 - **列出所有連線 (`GET /api/connections`)**:
-    - **目的**: 獲取目前所有活躍的 Display 和 Controller 連線，以及它們之間的控制關係。
+
+    - **目的**: 獲取目前所有活躍的 Display 和 Controller 連線，以及它們之間的訂閱關係。
     - **回應範例**:
+
     ```json
     {
-      "displays": [
-        {
-          "id": "display-1",
-          "controlled_by": "controller-A"
-        },
-        {
-          "id": "display-2"
-        }
-      ],
-      "controllers": [
-        {
-          "id": "controller-A",
-          "controlling": "display-1"
-        },
-        {
-          "id": "controller-B"
-        }
-      ]
+    	"displays": [
+    		{
+    			"id": "display-1",
+    			"subscribers": ["controller-A", "controller-B"]
+    		},
+    		{
+    			"id": "display-2",
+    			"subscribers": ["controller-A"]
+    		}
+    	],
+    	"controllers": [
+    		{
+    			"id": "controller-A",
+    			"subscriptions": ["display-1", "display-2"]
+    		},
+    		{
+    			"id": "controller-B",
+    			"subscriptions": ["display-1"]
+    		}
+    	]
     }
     ```
 
 - **刪除指定 Display (`DELETE /api/displays/{id}`)**:
-    - **目的**: 刪除指定 ID 的 Display 連線及其相關資料。如果該 Display 正在被 Controller 控制，則該 Controller 的控制關係也會被解除。
+
+    - **目的**: 刪除指定 ID 的 Display 連線及其相關資料。所有訂閱該 Display 的 Controller 都會被解除訂閱。
     - **回應**: 成功時返回 `204 No Content`，如果 Display 不存在則返回 `404 Not Found`。
 
 - **刪除指定 Controller (`DELETE /api/controllers/{id}`)**:
-    - **目的**: 刪除指定 ID 的 Controller 連線及其相關資料。如果該 Controller 正在控制某個 Display，則該 Display 的控制關係也會被解除。
+    - **目的**: 刪除指定 ID 的 Controller 連線及其相關資料。該 Controller 的所有訂閱關係都會被解除。
     - **回應**: 成功時返回 `204 No Content`，如果 Controller 不存在則返回 `404 Not Found`。
 
 ### 3.3. 被控制器 (Display)
 
 - **連線生命週期**:
     1.  **註冊**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=display`、`command_url` 以及選填的 `id`。
-        - 範例: `ws://<server_address>/ws?type=display&command_url=https://example.com/commands.json&id=my-unique-display`
-    2.  **等待指令**: 成功註冊後，保持連線並監聽來自伺服器的 `command` 訊息.
-    3.  **狀態更新**: 可主動發送 `status` 訊息給伺服器，以同步其狀態至 Controller.
-    4.  **斷線**: 連線中斷時，伺服器會自動註銷其註冊.
+        - 範例: `ws://<server_address>/ws?type=display&command_url=https://example.com/commands.json&id=my-display`
+    2.  **等待指令**: 成功註冊後，保持連線並監聽來自伺服器的 `command` 訊息。
+    3.  **狀態更新**: 可主動發送 `status` 訊息給伺服器，伺服器會將此狀態廣播給所有訂閱了此 Display 的 Controller。
+    4.  **斷線**: 連線中斷時，伺服器會自動註銷其註冊，並通知所有相關的 Controller。
 
 ### 3.4. 控制器 (Controller)
 
 - **連線生命週期**:
-    1.  **請求控制**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=controller` 及 `target_id` (目標 Display 的 ID)。
-        - 範例: `ws://<server_address>/ws?type=controller&target_id=my-unique-display`
-    2.  **接收命令集**: 連線成功後，伺服器會立即回傳目標 Display 的可用命令列表。
-    3.  **發送指令**: 向伺服器發送 `command` 訊息來操作 Display。
-    4.  **接收狀態**: 監聽來自伺服器的 `status` 訊息，以獲取 Display 的最新狀態。
+    1.  **註冊**: 透過 WebSocket 連線至伺服器，並在查詢參數中提供 `type=controller` 及選填的 `id`。
+        - 範例: `ws://<server_address>/ws?type=controller&id=my-controller`
+    2.  **訂閱 Display**: 連線成功後，Controller 需要發送 `subscribe` 訊息來訂閱一個或多個 Display。
+    3.  **接收命令集**: 訂閱成功後，伺服器會回傳目標 Display 的可用命令列表。
+    4.  **發送指令**: 向伺服器發送 `command` 訊息來操作指定的 Display。
+    5.  **接收狀態**: 監聽來自伺服器的 `status` 訊息，以獲取其訂閱的 Display 的最新狀態。
 
-## 4. 通訊協議與資料流程
+## 4. 通訊協議與資料流程 (多對多模型)
 
 ### 4.1. Display 註冊流程
 
@@ -92,12 +98,13 @@
 4.  Server 儲存 Display 的資訊與命令集。
 5.  Server 向 Display 發送成功註冊的訊息。
 
-### 4.2. Controller 控制流程
+### 4.2. Controller 訂閱流程
 
-1.  Controller 發起 WebSocket 連線請求。
-2.  Server 查找 `target_id` 對應的 Display 是否存在且可用。若否，則連線失敗。
-3.  Server 建立 Controller 與 Display 的配對關係。
-4.  Server 將快取的命令集發送給 Controller。
+1.  Controller 發起 WebSocket 連線請求並註冊。
+2.  Controller 發送 `subscribe` 訊息，`payload` 中包含 `display_ids` 陣列。
+3.  Server 驗證 `display_ids` 中的每個 Display 是否存在。若有任何 Display 不存在，則回傳錯誤。
+4.  Server 建立 Controller 與目標 Display 之間的訂閱關係。
+5.  Server 將每個目標 Display 的命令集 (`command_list`) 分別發送給 Controller。
 
 ## 5. 資料結構定義
 
@@ -109,8 +116,9 @@
 
     ```json
     {
-    	"type": "<MessageType>",
-    	"payload": {}
+        "type": "<MessageType>",
+        "display_id"?: "<TargetDisplayID>", // 'command' 和 'status' 訊息需要
+        "payload": {}
     }
     ```
 
@@ -118,15 +126,28 @@
 
     - `set_id` (Server -> Display): 伺服器發送給 Display 的，告知其被分配的唯一 ID。
     - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。
-    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。
-    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。
+    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。**發送時需在頂層包含 `display_id`**，以指定目標 Display。
+    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。**轉發時需在頂層包含 `display_id`**，以標明狀態來源。
+    - `subscribe` (Controller -> Server): Controller 用於訂閱一個或多個 Display。
+    - `unsubscribe` (Controller -> Server): Controller 用於取消訂閱。
+    - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。
     - `error` (Server -> Client): 伺服器發送的錯誤通知。
 
 - **範例**:
+    - **訂閱 (`subscribe`)**:
+        ```json
+        {
+        	"type": "subscribe",
+        	"payload": {
+        		"display_ids": ["display-1", "display-2"]
+        	}
+        }
+        ```
     - **指令 (`command`)**:
         ```json
         {
         	"type": "command",
+        	"display_id": "display-1",
         	"payload": {
         		"name": "set_volume",
         		"args": {
@@ -139,6 +160,7 @@
         ```json
         {
         	"type": "status",
+        	"display_id": "display-1", // 由 Server 附加
         	"payload": {
         		"playback_state": "playing",
         		"current_volume": 80
@@ -146,7 +168,7 @@
         }
         ```
 
-## 5. 錯誤處理機制
+## 6. 錯誤處理機制 (多對多模型)
 
 伺服器在遇到問題時，會透過 `error` 類型的 WebSocket 訊息通知客戶端。此訊息的 `payload` 將包含 `code`（錯誤碼）和 `message`（錯誤描述）。
 
@@ -160,36 +182,70 @@
 }
 ```
 
-以下是系統中可能發生的錯誤及其代碼：
+### 6.1. Controller 連線/訂閱錯誤 (3xxx)
 
-### 5.1. 連線錯誤 (1xxx)
+// TODO:
 
-| Code   | Message                  | 說明                                                                               |
-| :----- | :----------------------- | :--------------------------------------------------------------------------------- |
-| `1001` | Invalid Query Parameters | 連線請求的查詢參數缺失或格式錯誤 (例如，缺少 `type`, `command_url`, `target_id`)。 |
-| `1002` | Invalid Client Type      | `type` 參數的值不是 `display` 或 `controller`。                                    |
+## 7. 流程圖 (多對多模型)
 
-### 5.2. Display 註冊錯誤 (2xxx)
+```mermaid
+flowchart TD
+    subgraph Server Entry
+        A["GET /ws"] --> B{"Client 'type' param?"};
+    end
 
-| Code   | Message                 | 說明                                                                               |
-| :----- | :---------------------- | :--------------------------------------------------------------------------------- |
-| `2001` | Command URL Unreachable | 伺服器無法存取 Display 提供的 `command_url`。                                      |
-| `2002` | Invalid Command JSON    | 從 `command_url` 取得的內容不是有效的 JSON，或其結構不符合 `command.json` 的規範。 |
-| `2003` | Display ID Conflict     | Display 嘗試註冊的 `id` 已被另一個活躍的 Display 使用。                            |
+    subgraph Display Path
+        D1{"Has 'id' param?"}
+        D2{"ID exists?"} -- Yes --> RejectIDConflict(["Reject: ID Conflict"]);
+        D2 -- No --> D4["Use provided ID"];
+        D1 -- No --> D3["Generate unique ID"];
+        D3 --> D5;
+        D4 --> D5{"Fetch command_url"};
+        D5 -- Fails --> RejectURL(["Reject: URL Unreachable"]);
+        D5 -- Success --> D6{"Valid JSON?"};
+        D6 -- No --> RejectJSON(["Reject: Invalid JSON"]);
+        D6 -- Yes --> D7["Store Display in repo"];
+        D7 --> D8["Send 'set_id' message"];
+        D8 --> D9["Listen for messages"];
+        D9 -- On Disconnect --> F3["Cleanup Display & Notify Subscribers"];
+    end
 
-### 5.3. Controller 連線錯誤 (3xxx)
+    subgraph Controller Path
+        C1{"Has 'id' param?"}
+        C2{"ID exists?"} -- Yes --> RejectCtrlIDConflict(["Reject: ID Conflict"]);
+        C2 -- No --> C4["Use provided ID"];
+        C1 -- No --> C3["Generate unique ID"];
+        C3 --> C5;
+        C4 --> C5["Store Controller in repo"];
+        C5 --> C6["Listen for messages"];
+        C6 -- On Disconnect --> F4["Cleanup Controller & Subscriptions"];
+    end
 
-| Code   | Message                           | 說明                                                                |
-| :----- | :-------------------------------- | :------------------------------------------------------------------ |
-| `3001` | Target Display Not Found          | Controller 嘗試連線的 `target_id` 不存在或對應的 Display 不在線上。 |
-| `3002` | Target Display Already Controlled | 該 Display 已被另一個 Controller 控制（在目前的一對一模型下）。     |
+    subgraph Message Handling
+        subgraph Controller Messages
+            M1{"'subscribe' received"};
+            M2{"Validate display_ids"};
+            M2 -- Invalid --> RejectNotFound(["Reject: Target Not Found"]);
+            M2 -- Valid --> M3["Create Subscriptions"];
+            M3 --> M4["Send 'command_list' for each target"];
+            M5{"'command' received"};
+            M6{"Has 'display_id'?"} -- No --> RejectMissingTarget(["Reject: Missing Target ID"]);
+            M6 -- Yes --> F2["Forward to specific Display"];
+        end
+        subgraph Display Messages
+            M7{"'status' received"};
+            M7 --> F1["Forward to all Subscribers"];
+        end
+    end
 
-### 5.4. 通訊錯誤 (4xxx)
+    B -- 'display' --> D1;
+    B -- 'controller' --> C1;
+    B -- other --> RejectInvalidType(["Reject: Invalid Type"]);
 
-| Code   | Message                   | 說明                                                                                               |
-| :----- | :------------------------ | :------------------------------------------------------------------------------------------------- |
-| `4001` | Invalid Message Format    | 客戶端發送的訊息不是有效的 JSON��或不符合 `{ "type": "...", "payload": ... }` 的基本結構。         |
-| `4003` | Invalid Command Arguments | 伺服器在轉發指令前，不會驗證指令名稱或參數的有效性。此錯誤碼僅作為範例，實際伺服器將直接轉發指令。 |
+    C6 -- 'subscribe' --> M1;
+    C6 -- 'command' --> M5;
+    D9 -- 'status' --> M7;
+```
 
 ## 附錄：命令定義與控制項類型
 
@@ -286,78 +342,4 @@
 		"default": false
 	}
 ]
-```
-
-# flowchart
-
-```mermaid
-flowchart TD
- subgraph subGraph0["Server Entry"]
-        B@{ label: "Client 'type' param?" }
-        A["GET /ws"]
-  end
- subgraph DisplayPath["Display Registration"]
-        D1@{ label: "Has 'id' param?" }
-        D2{"ID exists?"}
-        D3["Generate unique ID"]
-        RejectIDConflict(["Reject: ID Conflict"])
-        D4["Use provided ID"]
-        D5{"Fetch command_url"}
-        RejectURL(["Reject: URL Unreachable"])
-        D6{"Valid JSON?"}
-        RejectJSON(["Reject: Invalid JSON"])
-        D7["Store Display in repo"]
-        D8@{ label: "Send 'set_id' message" }
-        D9("Listen for messages")
-  end
- subgraph ControllerPath["Controller Connection"]
-        C1@{ label: "Has 'target_id' param?" }
-        RejectNoTarget(["Reject: Missing target_id"])
-        C2{"Find Display by ID"}
-        RejectNotFound(["Reject: Not Found"])
-        C3{"Display already controlled?"}
-        RejectControlled(["Reject: Already Controlled"])
-        C4["Link Controller & Display"]
-        C5@{ label: "Send 'command_list'" }
-        C6("Listen for messages")
-  end
- subgraph subGraph3["Message Forwarding & Disconnect"]
-        F1["Forward to Controller"]
-        F2["Forward to Display"]
-        F3["Cleanup Display & Notify Controller"]
-        F4["Cleanup Controller"]
-  end
-    A --> B
-    B -- 'display' --> DisplayPath
-    B -- 'controller' --> ControllerPath
-    B -- other --> RejectInvalidType(["Reject: Invalid Type"])
-    D1 -- Yes --> D2
-    D1 -- No --> D3
-    D2 -- Yes --> RejectIDConflict
-    D2 -- No --> D4
-    D3 --> D5
-    D4 --> D5
-    D5 -- Fails --> RejectURL
-    D5 -- Success --> D6
-    D6 -- No --> RejectJSON
-    D6 -- Yes --> D7
-    D7 --> D8
-    D8 --> D9
-    C1 -- No --> RejectNoTarget
-    C1 -- Yes --> C2
-    C2 -- Not Found --> RejectNotFound
-    C2 -- Found --> C3
-    C3 -- Yes --> RejectControlled
-    C3 -- No --> C4
-    C4 --> C5
-    C5 --> C6
-    D9 -- 'status' received --> F1
-    C6 -- 'command' received --> F2
-    D9 -- Disconnect --> F3
-    C6 -- Disconnect --> F4
-    B@{ shape: diamond}
-    D1@{ shape: diamond}
-    D8@{ shape: rect}
-    C1@{ shape: diamond}
-    C5@{ shape: rect}
 ```
