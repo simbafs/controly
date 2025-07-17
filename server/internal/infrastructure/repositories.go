@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"iter"
 	"sync"
 
 	"github.com/simbafs/controly/server/internal/domain"
@@ -32,9 +33,16 @@ func (r *InMemoryDisplayRepository) Delete(id string) {
 	r.displays.Delete(id)
 }
 
-// Range calls f for each key and value in the map.
-func (r *InMemoryDisplayRepository) Range(f func(key, value any) bool) {
-	r.displays.Range(f)
+func (r *InMemoryDisplayRepository) All() iter.Seq[*domain.Display] {
+	return func(yield func(*domain.Display) bool) {
+		r.displays.Range(func(key any, value any) bool {
+			display, ok := value.(*domain.Display)
+			if !ok {
+				return true // continue iteration
+			}
+			return yield(display)
+		})
+	}
 }
 
 // InMemoryControllerRepository implements application.ControllerRepository for in-memory storage.
@@ -69,4 +77,16 @@ func (r *InMemoryControllerRepository) Delete(id string) {
 // Range calls f for each key and value in the map.
 func (r *InMemoryControllerRepository) Range(f func(key, value any) bool) {
 	r.controllers.Range(f)
+}
+
+func (r *InMemoryControllerRepository) All() iter.Seq[*domain.Controller] {
+	return func(yield func(*domain.Controller) bool) {
+		r.controllers.Range(func(key any, value any) bool {
+			display, ok := value.(*domain.Controller)
+			if !ok {
+				return true // continue iteration
+			}
+			return yield(display)
+		})
+	}
 }

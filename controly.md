@@ -110,31 +110,45 @@
 
 ### 5.1. WebSocket 訊息格式
 
-所有透過 WebSocket 傳輸的資料都應為 JSON 格式。
+所有透過 WebSocket 傳輸的資料都應為 JSON 格式。根據訊息的方向，有兩種結構：
 
-- **通用結構**:
+- **客戶端 -> 伺服器 (Incoming)**:
 
     ```json
     {
-        "type": "<MessageType>",
-        "display_id"?: "<TargetDisplayID>", // 'command' 和 'status' 訊息需要
-        "payload": {}
+    	"type": "<MessageType>",
+    	"to": "<target_client_id>", // (選填) e.g., for 'command' messages
+    	"payload": {}
+    }
+    ```
+
+- **伺服器 -> 客戶端 (Outgoing)**:
+
+    ```json
+    {
+    	"type": "<MessageType>",
+    	"from": "<source_client_id>", // (選填) e.g., for 'status' or forwarded 'command'
+    	"payload": {}
     }
     ```
 
 - **訊息類型 (`MessageType`)**:
 
-    - `set_id` (Server -> Display): 伺服器發送給 Display 的，告知其被分配的唯一 ID。
-    - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。
-    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。**發送時需在頂層包含 `display_id`**，以指定目標 Display。
-    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。**轉發時需在頂層包含 `display_id`**，以標明狀態來源。
+    - `set_id` (Server -> Client): 伺服器發送給客戶端的，告知其被分配的唯一 ID。
+    - `command_list` (Server -> Controller): 伺服器發送給 Controller 的可用命令列表。`from` 會是目標 Display 的 ID。
+    - `command` (Controller -> Server -> Display): Controller 發送給 Display 的指令。
+        - C -> S: 需在 `to` 欄位指定目標 Display ID。
+        - S -> D: 轉發時 `from` 欄位會是發出指令的 Controller ID。
+    - `status` (Display -> Server -> Controller): Display 發送給 Controller 的狀態更新。
+        - D -> S: Display 發送原始狀態。
+        - S -> C: 轉發時 `from` 欄位會是來源 Display 的 ID。
     - `subscribe` (Controller -> Server): Controller 用於訂閱一個或多個 Display。
     - `unsubscribe` (Controller -> Server): Controller 用於取消訂閱。
-    - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。
-    - `error` (Server -> Client): 伺服器發送的錯誤通知。
+    - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。`from` 會是 "server"。
+    - `error` (Server -> Client): 伺服器發送的錯誤通知。`from` 會是 "server"。
 
 - **範例**:
-    - **訂閱 (`subscribe`)**:
+    - **訂閱 (`subscribe`, C -> S)**:
         ```json
         {
         	"type": "subscribe",
@@ -143,11 +157,11 @@
         	}
         }
         ```
-    - **指令 (`command`)**:
+    - **指令 (`command`, C -> S)**:
         ```json
         {
         	"type": "command",
-        	"display_id": "display-1",
+        	"to": "display-1",
         	"payload": {
         		"name": "set_volume",
         		"args": {
@@ -156,11 +170,11 @@
         	}
         }
         ```
-    - **狀態 (`status`)**:
+    - **狀態 (`status`, S -> C)**:
         ```json
         {
         	"type": "status",
-        	"display_id": "display-1", // 由 Server 附加
+        	"from": "display-1",
         	"payload": {
         		"playback_state": "playing",
         		"current_volume": 80

@@ -8,8 +8,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
-	"github.com/simbafs/controly/server/internal/domain"
-	"github.com/simbafs/controly/server/internal/infrastructure"
 )
 
 // API response structs
@@ -52,23 +50,24 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	displays := []displayInfo{}
 	controllers := []controllerInfo{}
 
+	log.Println("collecting display")
 	// Get all displays
-	h.DisplayRepo.(*infrastructure.InMemoryDisplayRepository).Range(func(key, value any) bool {
-		display := value.(*domain.Display)
+	for display := range h.DisplayRepo.All() {
 		info := displayInfo{ID: display.ID}
+		log.Printf("waiting %s", display.ID)
 		display.Mu.Lock() // Lock to safely read Subscribers map
+		log.Printf("get %s", display.ID)
 		for subscriberID := range display.Subscribers {
 			info.Subscribers = append(info.Subscribers, subscriberID)
 		}
 		display.Mu.Unlock()
 		sort.Strings(info.Subscribers) // Sort for consistent output
 		displays = append(displays, info)
-		return true
-	})
+	}
 
+	log.Println("collecting controller")
 	// Get all controllers
-	h.ControllerRepo.(*infrastructure.InMemoryControllerRepository).Range(func(key, value any) bool {
-		controller := value.(*domain.Controller)
+	for controller := range h.ControllerRepo.All() {
 		info := controllerInfo{ID: controller.ID}
 		controller.Mu.Lock() // Lock to safely read Subscriptions map
 		for subscriptionID := range controller.Subscriptions {
@@ -77,19 +76,21 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		controller.Mu.Unlock()
 		sort.Strings(info.Subscriptions) // Sort for consistent output
 		controllers = append(controllers, info)
-		return true
-	})
+	}
 
+	log.Println("preparing response")
 	response := connectionsResponse{
 		Displays:    displays,
 		Controllers: controllers,
 	}
 
+	log.Println("sending response")
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Error encoding connections response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
+	log.Println("response sent successfully")
 }
 
 // DeleteDisplayHandler holds the dependency for the delete display API endpoint.

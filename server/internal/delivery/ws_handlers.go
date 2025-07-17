@@ -56,7 +56,7 @@ func (h *WsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "display":
 		h.handleDisplayConnection(conn, params)
 	case "controller":
-		h.handleControllerConnection(conn, params)
+		h.handleControllerConnection(conn)
 	default:
 		h.wsGateway.SendError("", domain.ErrInvalidClientType, "Invalid client type. Must be 'display' or 'controller'.")
 		conn.Close()
@@ -82,7 +82,7 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 	// Send set_id message to the display
 	setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
 	// Here we use wsGateway directly as it's a simple message send, could be a use case too.
-	err = h.wsGateway.SendMessage(displayID, "set_id", setIDPayload)
+	err = h.wsGateway.SendMessage(displayID, "server", "set_id", setIDPayload)
 	if err != nil {
 		log.Printf("Failed to send set_id to display '%s': %v", displayID, err)
 		// If we can't send the ID, the display is useless. Trigger disconnection logic.
@@ -108,27 +108,33 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 	}
 }
 
-func (h *WsHandler) handleControllerConnection(conn *websocket.Conn, params url.Values) {
+func (h *WsHandler) handleControllerConnection(conn *websocket.Conn) {
 	defer conn.Close()
 
-	controllerIDParam := params.Get("id")
-
 	// Use case handles connection and registration.
-	controllerID, err := h.controllerConnectionUC.Execute(conn, controllerIDParam)
+	controllerID, err := h.controllerConnectionUC.Execute(conn)
 	if err != nil {
 		log.Printf("Controller connection failed: %v", err)
 		// The use case should handle sending errors back to the client if registration fails.
 		return
 	}
+	defer h.controllerDisconnectionUC.Execute(controllerID)
 
 	// No initial command_list sent here. Controller will subscribe and receive command_list.
+	setIDPayload, _ := json.Marshal(map[string]string{"id": controllerID})
+	// Send set_id message to the controller
+	err = h.wsGateway.SendMessage(controllerID, "server", "set_id", setIDPayload)
+	if err != nil {
+		log.Printf("Failed to send set_id to controller '%s': %v", controllerID, err)
+		// If we can't send the ID, the controller is useless. Trigger disconnection logic.
+		return
+	}
 
 	for {
 		_, p, err := h.wsGateway.ReadMessage(conn)
 		if err != nil {
 			log.Printf("Controller '%s' disconnected: %v", controllerID, err)
 			// A single call to the disconnection use case handles all cleanup.
-			h.controllerDisconnectionUC.Execute(controllerID)
 			return
 		}
 
