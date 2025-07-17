@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
 	"github.com/simbafs/controly/server/internal/domain"
-	"github.com/simbafs/controly/server/internal/infrastructure" // Needed for type assertion to InMemoryDisplayRepository/InMemoryControllerRepository
+	"github.com/simbafs/controly/server/internal/infrastructure"
 )
 
 // API response structs
@@ -18,13 +19,13 @@ type connectionsResponse struct {
 }
 
 type displayInfo struct {
-	ID           string `json:"id"`
-	ControlledBy string `json:"controlled_by,omitempty"` // Omit if empty
+	ID          string   `json:"id"`
+	Subscribers []string `json:"subscribers"`
 }
 
 type controllerInfo struct {
-	ID          string `json:"id"`
-	Controlling string `json:"controlling,omitempty"` // Omit if empty
+	ID            string   `json:"id"`
+	Subscriptions []string `json:"subscriptions"`
 }
 
 // ConnectionsHandler holds the dependencies for the connections API endpoint.
@@ -55,11 +56,12 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.DisplayRepo.(*infrastructure.InMemoryDisplayRepository).Range(func(key, value any) bool {
 		display := value.(*domain.Display)
 		info := displayInfo{ID: display.ID}
-		display.Mu.Lock() // Lock to safely read Controller field
-		if display.Controller != nil {
-			info.ControlledBy = display.Controller.ID
+		display.Mu.Lock() // Lock to safely read Subscribers map
+		for subscriberID := range display.Subscribers {
+			info.Subscribers = append(info.Subscribers, subscriberID)
 		}
 		display.Mu.Unlock()
+		sort.Strings(info.Subscribers) // Sort for consistent output
 		displays = append(displays, info)
 		return true
 	})
@@ -68,9 +70,12 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.ControllerRepo.(*infrastructure.InMemoryControllerRepository).Range(func(key, value any) bool {
 		controller := value.(*domain.Controller)
 		info := controllerInfo{ID: controller.ID}
-		if controller.TargetDisplay != nil {
-			info.Controlling = controller.TargetDisplay.ID
+		controller.Mu.Lock() // Lock to safely read Subscriptions map
+		for subscriptionID := range controller.Subscriptions {
+			info.Subscriptions = append(info.Subscriptions, subscriptionID)
 		}
+		controller.Mu.Unlock()
+		sort.Strings(info.Subscriptions) // Sort for consistent output
 		controllers = append(controllers, info)
 		return true
 	})

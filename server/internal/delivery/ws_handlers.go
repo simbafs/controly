@@ -111,23 +111,17 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 func (h *WsHandler) handleControllerConnection(conn *websocket.Conn, params url.Values) {
 	defer conn.Close()
 
-	targetID := params.Get("target_id")
+	controllerIDParam := params.Get("id")
 
 	// Use case handles connection and registration.
-	controllerID, display, err := h.controllerConnectionUC.Execute(conn, targetID)
+	controllerID, err := h.controllerConnectionUC.Execute(conn, controllerIDParam)
 	if err != nil {
 		log.Printf("Controller connection failed: %v", err)
+		// The use case should handle sending errors back to the client if registration fails.
 		return
 	}
 
-	// Send command list to controller
-	commandListMsgPayload := display.CommandList
-	err = h.wsGateway.SendMessage(controllerID, "command_list", commandListMsgPayload)
-	if err != nil {
-		log.Printf("Failed to send command_list to controller '%s': %v", controllerID, err)
-		h.controllerDisconnectionUC.Execute(controllerID) // Cleanup
-		return
-	}
+	// No initial command_list sent here. Controller will subscribe and receive command_list.
 
 	for {
 		_, p, err := h.wsGateway.ReadMessage(conn)
@@ -141,8 +135,7 @@ func (h *WsHandler) handleControllerConnection(conn *websocket.Conn, params url.
 		err = h.controllerMessageHandlingUC.Execute(controllerID, p)
 		if err != nil {
 			log.Printf("Error handling controller message from '%s': %v", controllerID, err)
-			// Send error back to controller
-			h.wsGateway.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid message format or type.")
+			// The use case should handle sending errors back to the controller.
 		}
 	}
 }

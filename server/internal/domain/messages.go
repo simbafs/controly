@@ -4,8 +4,9 @@ import "encoding/json"
 
 // WebSocketMessage represents the generic WebSocket message format
 type WebSocketMessage struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+	Type      string          `json:"type"`
+	DisplayID string          `json:"display_id,omitempty"` // Optional for some message types
+	Payload   json.RawMessage `json:"payload"`
 }
 
 // ErrorPayload represents the payload for an error message

@@ -14,6 +14,8 @@ const (
 	// Controller Connection Errors (3xxx)
 	ErrTargetDisplayNotFound          = 3001
 	ErrTargetDisplayAlreadyControlled = 3002
+	ErrControllerIDConflict           = 3003
+	ErrNotSubscribedToDisplay         = 3004
 
 	// Communication Errors (4xxx)
 	ErrInvalidMessageFormat = 4001

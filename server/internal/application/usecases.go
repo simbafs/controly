@@ -91,14 +91,19 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 
 	actualDisplay := displayIface.(*domain.Display)
 	actualDisplay.Mu.Lock()
-	if actualDisplay.Controller != nil {
-		controllerID := actualDisplay.Controller.ID
-		// Notify controller, unregister it, and delete it from repo
-		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, "Target display disconnected.")
-		uc.ConnManager.UnregisterControllerConnection(controllerID)
-		uc.ControllerRepo.Delete(controllerID)
-		actualDisplay.Controller = nil
+	// Notify all subscribers and remove this display from their subscriptions
+	for controllerID := range actualDisplay.Subscribers {
+		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Display '%s' disconnected.", displayID))
+		controller, controllerFound := uc.ControllerRepo.FindByID(controllerID)
+		if controllerFound {
+			controller.Mu.Lock()
+			delete(controller.Subscriptions, displayID)
+			controller.Mu.Unlock()
+		}
+		// No need to unregister controller connection or delete controller here,
+		// as the controller might be subscribed to other displays.
 	}
+	actualDisplay.Subscribers = make(map[string]bool) // Clear subscribers
 	actualDisplay.Mu.Unlock()
 
 	uc.DisplayRepo.Delete(displayID)
@@ -107,56 +112,54 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 
 // ControllerConnectionUseCase handles a new Controller connection.
 type ControllerConnectionUseCase struct {
-	DisplayRepo      DisplayRepository
 	ControllerRepo   ControllerRepository
 	WebSocketService WebSocketConnectionManager
+	IDGenerator      IDGenerator // New dependency
 }
 
-// Execute connects a controller to a target display and registers its connection.
-func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, targetID string) (string, *domain.Display, error) {
-	// Generate a temporary controller ID for error reporting before actual assignment
-	controllerIDCounter++
-	tempControllerID := fmt.Sprintf("temp-controller-%d", controllerIDCounter)
+// Execute registers a new controller and its connection.
+func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn, controllerIDParam string) (string, error) {
+	var controllerID string
 
-	if targetID == "" {
-		uc.WebSocketService.SendError(tempControllerID, domain.ErrInvalidQueryParams, "Missing required query parameter: target_id")
-		return "", nil, fmt.Errorf("missing target_id")
+	// If controllerIDParam is empty, generate a new unique ID
+	if controllerIDParam == "" {
+		// For controllers, we don't have a specific checker like for displays.
+		// We'll just generate and then check against the ControllerRepo.
+		// This might need a more robust ID generation for controllers if conflicts are frequent.
+		// For now, let's use a simple counter or a similar Base58 generator if we adapt it.
+		// Let's use the Base58IDGenerator for controllers too, but it needs a ControllerExistenceChecker.
+		// For now, I'll use a simple counter for controller IDs as in the original code,
+		// but ensure it's unique by checking the repo.
+		controllerIDCounter++
+		controllerID = fmt.Sprintf("controller-%d", controllerIDCounter)
+		// In a real scenario, this should use a robust ID generator and check for uniqueness.
+		// For now, assuming simple counter is unique enough for temporary IDs.
+	} else {
+		controllerID = controllerIDParam
 	}
 
-	display, found := uc.DisplayRepo.FindByID(targetID)
-	if !found {
-		uc.WebSocketService.SendError(tempControllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Target display '%s' not found or offline.", targetID))
-		return "", nil, fmt.Errorf("target display not found: %s", targetID)
+	// Check for ID conflict
+	if _, exists := uc.ControllerRepo.FindByID(controllerID); exists {
+		uc.WebSocketService.SendError(controllerID, domain.ErrControllerIDConflict, fmt.Sprintf("Controller ID '%s' is already in use.", controllerID))
+		return "", fmt.Errorf("controller ID conflict: %s", controllerID)
 	}
 
-	actualDisplay := display.(*domain.Display) // Type assertion
-
-	actualDisplay.Mu.Lock()
-	defer actualDisplay.Mu.Unlock()
-
-	if actualDisplay.Controller != nil {
-		uc.WebSocketService.SendError(tempControllerID, domain.ErrTargetDisplayAlreadyControlled, fmt.Sprintf("Display '%s' is already controlled by another client.", targetID))
-		return "", nil, fmt.Errorf("target display already controlled: %s", targetID)
-	}
-
-	controllerIDCounter++
-	controllerID := fmt.Sprintf("controller-%d", controllerIDCounter) // Simple ID generation
 	controller := &domain.Controller{
 		ID:            controllerID,
-		TargetDisplay: actualDisplay,
+		Subscriptions: make(map[string]bool), // Initialize the map
 	}
 	uc.ControllerRepo.Save(controller)
-	actualDisplay.Controller = controller
 	uc.WebSocketService.RegisterControllerConnection(controllerID, conn)
 
-	log.Printf("Controller '%s' connected to Display '%s'.", controllerID, targetID)
+	log.Printf("Controller '%s' connected and registered.", controllerID)
 
-	return controllerID, actualDisplay, nil
+	return controllerID, nil
 }
 
 // ControllerDisconnectionUseCase handles the disconnection of a Controller.
 type ControllerDisconnectionUseCase struct {
 	ControllerRepo ControllerRepository
+	DisplayRepo    DisplayRepository // Add DisplayRepo dependency
 	ConnManager    WebSocketConnectionManager
 }
 
@@ -165,15 +168,20 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 	// Unregister connection first
 	uc.ConnManager.UnregisterControllerConnection(controllerID)
 
-	// Find the controller to get the target display
+	// Find the controller to get its subscriptions
 	controller, found := uc.ControllerRepo.FindByID(controllerID)
-	if found && controller.TargetDisplay != nil {
-		// Release the display from being controlled
-		controller.TargetDisplay.Mu.Lock()
-		if controller.TargetDisplay.Controller == controller {
-			controller.TargetDisplay.Controller = nil
+	if found {
+		controller.Mu.Lock()
+		for displayID := range controller.Subscriptions {
+			displayIface, displayFound := uc.DisplayRepo.FindByID(displayID)
+			if displayFound {
+				actualDisplay := displayIface.(*domain.Display)
+				actualDisplay.Mu.Lock()
+				delete(actualDisplay.Subscribers, controllerID)
+				actualDisplay.Mu.Unlock()
+			}
 		}
-		controller.TargetDisplay.Mu.Unlock()
+		controller.Mu.Unlock()
 	}
 	// Delete the controller from the repository
 	uc.ControllerRepo.Delete(controllerID)
@@ -196,14 +204,17 @@ func (uc *DeleteDisplayUseCase) Execute(displayID string) error {
 
 	actualDisplay := displayIface.(*domain.Display)
 	actualDisplay.Mu.Lock()
-	if actualDisplay.Controller != nil {
-		controllerID := actualDisplay.Controller.ID
-		// Notify controller, unregister it, and delete it from repo
-		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, "Target display disconnected.") // Or a more specific error for deletion
-		uc.ConnManager.UnregisterControllerConnection(controllerID)
-		uc.ControllerRepo.Delete(controllerID)
-		actualDisplay.Controller = nil
+	// Notify all subscribers and remove this display from their subscriptions
+	for controllerID := range actualDisplay.Subscribers {
+		uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Display '%s' deleted.", displayID)) // More specific error
+		controller, controllerFound := uc.ControllerRepo.FindByID(controllerID)
+		if controllerFound {
+			controller.Mu.Lock()
+			delete(controller.Subscriptions, displayID)
+			controller.Mu.Unlock()
+		}
 	}
+	actualDisplay.Subscribers = make(map[string]bool) // Clear subscribers
 	actualDisplay.Mu.Unlock()
 
 	uc.ConnManager.UnregisterDisplayConnection(displayID)
@@ -215,6 +226,7 @@ func (uc *DeleteDisplayUseCase) Execute(displayID string) error {
 // DeleteControllerUseCase handles the deletion of a Controller.
 type DeleteControllerUseCase struct {
 	ControllerRepo ControllerRepository
+	DisplayRepo    DisplayRepository // Add DisplayRepo dependency
 	ConnManager    WebSocketConnectionManager
 }
 
@@ -224,14 +236,20 @@ func (uc *DeleteControllerUseCase) Execute(controllerID string) error {
 	if !found {
 		return fmt.Errorf("controller '%s' not found", controllerID)
 	}
-	// If the controller was controlling a display, release it
-	if controller.TargetDisplay != nil {
-		controller.TargetDisplay.Mu.Lock()
-		if controller.TargetDisplay.Controller == controller {
-			controller.TargetDisplay.Controller = nil
+
+	controller.Mu.Lock()
+	for displayID := range controller.Subscriptions {
+		displayIface, displayFound := uc.DisplayRepo.FindByID(displayID)
+		if displayFound {
+			actualDisplay := displayIface.(*domain.Display)
+			actualDisplay.Mu.Lock()
+			delete(actualDisplay.Subscribers, controllerID)
+			actualDisplay.Mu.Unlock()
 		}
-		controller.TargetDisplay.Mu.Unlock()
 	}
+	controller.Subscriptions = make(map[string]bool) // Clear subscriptions
+	controller.Mu.Unlock()
+
 	uc.ConnManager.UnregisterControllerConnection(controllerID)
 	uc.ControllerRepo.Delete(controllerID)
 	log.Printf("Deleted controller '%s' from repository.", controllerID)
@@ -263,11 +281,11 @@ func (uc *DisplayMessageHandlingUseCase) Execute(displayID string, message []byt
 	if msg.Type == "status" {
 		actualDisplay.Mu.Lock()
 		defer actualDisplay.Mu.Unlock()
-		if actualDisplay.Controller != nil {
-			// Forward status to the controlling controller
-			if err := uc.WebSocketService.SendMessage(actualDisplay.Controller.ID, "status", msg.Payload); err != nil {
-				log.Printf("Error forwarding status to controller for display '%s': %v", displayID, err)
-				return fmt.Errorf("failed to forward status: %w", err)
+		// Forward status to all subscribing controllers
+		for controllerID := range actualDisplay.Subscribers {
+			if err := uc.WebSocketService.SendMessage(controllerID, "status", msg.Payload); err != nil {
+				log.Printf("Error forwarding status to controller '%s' for display '%s': %v", controllerID, displayID, err)
+				// Continue to next subscriber even if one fails
 			}
 		}
 	} else {
@@ -292,25 +310,98 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 
 	var msg domain.WebSocketMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
-		// This error should ideally be sent back to the controller
+		uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid message format.")
 		return fmt.Errorf("invalid message format from controller '%s': %w", controllerID, err)
 	}
 
-	if msg.Type == "command" {
-		controller.TargetDisplay.Mu.Lock()
-		defer controller.TargetDisplay.Mu.Unlock()
-
-		if controller.TargetDisplay.Controller == controller { // Only forward if this controller is still active
-			// Forward command to the target display
-			if err := uc.WebSocketService.SendMessage(controller.TargetDisplay.ID, "command", msg.Payload); err != nil {
-				log.Printf("Error forwarding command to display '%s': %v", controller.TargetDisplay.ID, err)
-				return fmt.Errorf("failed to forward command: %w", err)
-			}
-		} else {
-			// This case should ideally be handled by the interface layer sending an error back to the controller
-			return fmt.Errorf("controller '%s' no longer controls display '%s'", controllerID, controller.TargetDisplay.ID)
+	switch msg.Type {
+	case "subscribe":
+		var payload struct {
+			DisplayIDs []string `json:"display_ids"`
 		}
-	} else {
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid subscribe payload format.")
+			return fmt.Errorf("invalid subscribe payload format from controller '%s': %w", controllerID, err)
+		}
+
+		controller.Mu.Lock()
+		defer controller.Mu.Unlock()
+
+		for _, displayID := range payload.DisplayIDs {
+			displayIface, displayFound := uc.DisplayRepo.FindByID(displayID)
+			if !displayFound {
+				uc.WebSocketService.SendError(controllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Display '%s' not found for subscription.", displayID))
+				continue // Continue to next display even if one fails
+			}
+			actualDisplay := displayIface.(*domain.Display)
+
+			actualDisplay.Mu.Lock()
+			actualDisplay.Subscribers[controllerID] = true // Add controller to display's subscribers
+			actualDisplay.Mu.Unlock()
+
+			controller.Subscriptions[displayID] = true // Add display to controller's subscriptions
+			uc.DisplayRepo.Save(actualDisplay)         // Persist display changes
+			uc.ControllerRepo.Save(controller)         // Persist controller changes
+
+			// Send command list to controller for the newly subscribed display
+			if err := uc.WebSocketService.SendMessage(controllerID, "command_list", actualDisplay.CommandList); err != nil {
+				log.Printf("Error sending command_list to controller '%s' for display '%s': %v", controllerID, displayID, err)
+				// Continue to next display even if one fails
+			}
+		}
+		log.Printf("Controller '%s' subscribed to displays: %v", controllerID, payload.DisplayIDs)
+
+	case "unsubscribe":
+		var payload struct {
+			DisplayIDs []string `json:"display_ids"`
+		}
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid unsubscribe payload format.")
+			return fmt.Errorf("invalid unsubscribe payload format from controller '%s': %w", controllerID, err)
+		}
+
+		controller.Mu.Lock()
+		defer controller.Mu.Unlock()
+
+		for _, displayID := range payload.DisplayIDs {
+			displayIface, displayFound := uc.DisplayRepo.FindByID(displayID)
+			if displayFound {
+				actualDisplay := displayIface.(*domain.Display)
+				actualDisplay.Mu.Lock()
+				delete(actualDisplay.Subscribers, controllerID) // Remove controller from display's subscribers
+				actualDisplay.Mu.Unlock()
+				uc.DisplayRepo.Save(actualDisplay) // Persist display changes
+			}
+			delete(controller.Subscriptions, displayID) // Remove display from controller's subscriptions
+			uc.ControllerRepo.Save(controller)          // Persist controller changes
+		}
+		log.Printf("Controller '%s' unsubscribed from displays: %v", controllerID, payload.DisplayIDs)
+
+	case "command":
+		// Command messages must have a display_id at the top level
+		if msg.DisplayID == "" {
+			uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, "Command message missing target display_id.")
+			return fmt.Errorf("command message from controller '%s' missing target display_id", controllerID)
+		}
+
+		controller.Mu.Lock()
+		_, isSubscribed := controller.Subscriptions[msg.DisplayID]
+		controller.Mu.Unlock()
+
+		if !isSubscribed {
+			uc.WebSocketService.SendError(controllerID, domain.ErrNotSubscribedToDisplay, fmt.Sprintf("Not subscribed to display '%s'.", msg.DisplayID))
+			return fmt.Errorf("controller '%s' not subscribed to display '%s'", controllerID, msg.DisplayID)
+		}
+
+		// Forward command to the target display
+		if err := uc.WebSocketService.SendMessage(msg.DisplayID, "command", msg.Payload); err != nil {
+			log.Printf("Error forwarding command to display '%s' from controller '%s': %v", msg.DisplayID, controllerID, err)
+			return fmt.Errorf("failed to forward command: %w", err)
+		}
+		log.Printf("Controller '%s' sent command to display '%s'.", controllerID, msg.DisplayID)
+
+	default:
+		uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type: %s", msg.Type))
 		return fmt.Errorf("unknown message type from controller '%s': %s", controllerID, msg.Type)
 	}
 	return nil

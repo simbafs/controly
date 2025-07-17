@@ -9,12 +9,13 @@ import (
 type Display struct {
 	ID          string
 	CommandList json.RawMessage // Store raw command.json content
-	Controller  *Controller     // Pointer to the controlling Controller, if any
-	Mu          sync.Mutex      // Mutex to protect access to Controller
+	Subscribers map[string]bool // Map of Controller IDs subscribed to this Display
+	Mu          sync.Mutex      // Mutex to protect access to Subscribers
 }
 
 // Controller represents a connected Controller client.
 type Controller struct {
 	ID            string
-	TargetDisplay *Display // Pointer to the Display being controlled
+	Subscriptions map[string]bool // Map of Display IDs this Controller is subscribed to
+	Mu            sync.Mutex      // Mutex to protect access to Subscriptions
 }

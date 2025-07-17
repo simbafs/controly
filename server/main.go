@@ -6,11 +6,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
-	"github.com/simbafs/controly/server/internal/delivery" // New import
+	"github.com/simbafs/controly/server/internal/delivery"
 	"github.com/simbafs/controly/server/internal/infrastructure"
 )
 
 // wsHandlerDependencies holds the dependencies for the wsHandler
+// This struct is no longer strictly necessary as dependencies are passed directly to NewWsHandler,
+// but keeping it for now as it's part of the existing structure.
 type wsHandlerDependencies struct {
 	displayRegistrationUC       *application.DisplayRegistrationUseCase
 	displayDisconnectionUC      *application.DisplayDisconnectionUseCase
@@ -44,13 +46,14 @@ func main() {
 	}
 
 	controllerConnectionUC := &application.ControllerConnectionUseCase{
-		DisplayRepo:      displayRepo,
 		ControllerRepo:   controllerRepo,
 		WebSocketService: wsGateway,
+		IDGenerator:      idGenerator, // Added IDGenerator
 	}
 
 	controllerDisconnectionUC := &application.ControllerDisconnectionUseCase{
 		ControllerRepo: controllerRepo,
+		DisplayRepo:    displayRepo, // Added DisplayRepo
 		ConnManager:    wsGateway,
 	}
 
@@ -66,12 +69,13 @@ func main() {
 
 	// New delete use cases
 	deleteDisplayUC := &application.DeleteDisplayUseCase{
-		DisplayRepo: displayRepo,
+		DisplayRepo:    displayRepo,
 		ControllerRepo: controllerRepo,
-		ConnManager: wsGateway,
+		ConnManager:    wsGateway,
 	}
 	deleteControllerUC := &application.DeleteControllerUseCase{
 		ControllerRepo: controllerRepo,
+		DisplayRepo:    displayRepo, // Added DisplayRepo
 		ConnManager:    wsGateway,
 	}
 
