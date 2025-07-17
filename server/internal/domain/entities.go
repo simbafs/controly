@@ -2,8 +2,8 @@ package domain
 
 import (
 	"encoding/json"
-	// "sync"
-	sync "github.com/linkdata/deadlock"
+	"sync"
+	// sync "github.com/linkdata/deadlock"
 )
 
 // Display represents a connected Display device.

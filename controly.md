@@ -261,6 +261,177 @@ flowchart TD
     D9 -- 'status' --> M7;
 ```
 
+## 8. 適用於瀏覽器的 SDK
+
+為簡化客戶端（包括 Display 和 Controller）與中繼伺服器的整合，我們將提供一個適用於瀏覽器環境的 JavaScript SDK。此 SDK 會封裝底層的 WebSocket 通訊細節，並提供一個事件驅動、易於使用的 API。
+
+### 8.1. `controly.Display`
+
+`Display` SDK 負責處理與伺服器的連線、註冊、接收指令並回報狀態。
+
+#### 使用範例
+
+```javascript
+// 1. 引入 SDK
+// <script src="https://<your-cdn>/controly-sdk.js"></script>
+
+// 2. 建立 Display 實例
+const display = new controly.Display({
+	serverUrl: 'ws://localhost:8080/ws',
+	id: 'my-unique-display-01', // 選填，若不提供，伺服器會自動分配
+	commandUrl: 'https://example.com/commands.json', // 提供命令定義檔的 URL
+})
+
+// 3. 註冊命令處理函式
+// 當 Controller 發送 'play_pause' 指令時，此函式會被觸發
+display.command('play_pause', (command, fromControllerId) => {
+	console.log(`Received command '${command.name}' from controller '${fromControllerId}'`)
+	// 在此處執行實際的播放/暫停邏輯
+	// ...
+
+	// 執行後，更新狀態並通知所有訂閱者
+	display.updateStatus({
+		playback: 'playing',
+		timestamp: Date.now(),
+	})
+})
+
+// 註冊另一個指令 'set_volume'
+display.command('set_volume', (command, fromControllerId) => {
+	const volumeLevel = command.args.level
+	console.log(`Setting volume to ${volumeLevel} as requested by ${fromControllerId}`)
+	// 執行音量設定
+	// ...
+
+	// 更新狀態
+	display.updateStatus({
+		volume: volumeLevel,
+	})
+})
+
+// 4. 監聽連線事件
+display.on('open', id => {
+	console.log(`Display connected to server with ID: ${id}`)
+})
+
+display.on('error', error => {
+	console.error('An error occurred:', error.message)
+})
+
+display.on('close', () => {
+	console.log('Connection closed.')
+})
+
+// 5. 連線至伺服器
+display.connect()
+
+// 6. 主動更新狀態
+// 當內部狀態改變時（例如，使用者手動操作），可隨時更新
+setInterval(() => {
+	display.updateStatus({
+		heartbeat: Date.now(),
+	})
+}, 30000)
+```
+
+#### API 詳述
+
+- `new controly.Display(options)`: 建立一個 Display 實例。
+    - `options.serverUrl` (string, required): 中繼伺服器的 WebSocket URL。
+    - `options.id` (string, optional): 指定 Display 的 ID。
+    - `options.commandUrl` (string, required): `command.json` 的 URL。
+- `.connect()`: 啟動與伺服器的連線。
+- `.disconnect()`: 關閉連線。
+- `.on(eventName, callback)`: 註冊事件監聽器。
+    - `eventName` (string): 事件名稱。可以是連線事件 (`open`, `close`, `error`) 。
+    - `callback(payload, fromId)`: 事件觸發時的回呼函式。
+- `.command(commandName, callback)`：註冊命令處理函數。
+    - `commandName` (string)：命令名稱。不必要是 `command.json` 中的命令，不強制檢查。
+    - `callback(args, fromID)`：收到命令時的回呼函式。
+- `.updateStatus(statusPayload)`: 向所有訂閱的 Controller 廣播目前的狀態。
+    - `statusPayload` (object): 任何可被序列化為 JSON 的物件。
+
+### 8.2. `controly.Controller`
+
+`Controller` SDK 負責連線伺服器、訂閱 Display、接收其命令列表與狀態更新，並發送指令。
+
+#### 使用範例
+
+```javascript
+// 1. 引入 SDK
+// <script src="https://<your-cdn>/controly-sdk.js"></script>
+
+// 2. 建立 Controller 實例
+const controller = new controly.Controller({
+	serverUrl: 'ws://localhost:8080/ws',
+	id: 'my-remote-controller-A', // 選填
+})
+
+// 3. 監聽事件
+controller.on('open', id => {
+	console.log(`Controller connected with ID: ${id}`)
+	// 連線成功後，訂閱感興趣的 Display
+	controller.subscribe(['display-01', 'display-02'])
+})
+
+// 當成功訂閱並收到 Display 的命令列表時觸發
+controller.on('command_list', data => {
+	const { from, payload } = data
+	console.log(`Received command list from Display '${from}':`, payload)
+	// 在此處可以根據命令列表動態生成 UI 控制介面
+	// e.g., renderButtons(payload);
+})
+
+// 監聽來自 Display 的狀態更新
+controller.on('status', data => {
+	const { from, payload } = data
+	console.log(`Status update from Display '${from}':`, payload)
+	// e.g., updateUI(from, payload);
+})
+
+controller.on('notification', notification => {
+	console.info('Server notification:', notification.message)
+})
+
+controller.on('error', error => {
+	console.error('An error occurred:', error.message)
+})
+
+// 4. 連線至伺服器
+controller.connect()
+
+// 5. 發送指令 (例如，在使用者點擊按鈕後)
+function sendPlayCommand(displayId) {
+	controller.sendCommand(displayId, {
+		name: 'play_pause',
+	})
+}
+
+function sendVolumeCommand(displayId, volume) {
+	controller.sendCommand(displayId, {
+		name: 'set_volume',
+		args: { level: volume },
+	})
+}
+```
+
+#### API 詳述
+
+- `new controly.Controller(options)`: 建立一個 Controller 實例。
+    - `options.serverUrl` (string, required): 中繼伺服器的 WebSocket URL。
+    - `options.id` (string, optional): 指定 Controller 的 ID。
+- `.connect()`: 啟動與伺服器的連線。
+- `.disconnect()`: 關閉連線。
+- `.on(eventName, callback)`: 註冊事件監聽器。
+    - `eventName`: `open`, `close`, `error`, `command_list`, `status`, `notification`。
+    - `callback(payload)`: 事件觸發時的回呼函式。
+- `.subscribe(displayIds)`: 訂閱一個或多個 Display。
+    - `displayIds` (string[]): 目標 Display ID 的陣列。
+- `.unsubscribe(displayIds)`: 取消訂閱。
+- `.sendCommand(displayId, command)`: 向指定的 Display 發送指令。
+    - `displayId` (string): 目標 Display 的 ID。
+    - `command` (object): 指令物件，包含 `name` 及選填的 `args`。
+
 ## 附錄：命令定義與控制項類型
 
 ### 命令定義 (`command.json`)
