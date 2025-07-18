@@ -1,0 +1,34 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+  color: #fff;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+#time {
+  font-size: 45vw;
+  font-weight: bold;
+}
+
+#qrcode {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+}
