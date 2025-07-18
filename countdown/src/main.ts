@@ -81,10 +81,10 @@ display.command('reset', () => {
 	updateTime(init_time)
 })
 
-display.command('set_time', ({ value: new_time }: { value: number }) => {
+display.command('set_time', ({ args }: { args: { value: number } }) => {
 	clearInterval(timer!)
 	timer = null
-	time = init_time = new_time
+	time = init_time = args.value
 	updateTime(time)
 })
 

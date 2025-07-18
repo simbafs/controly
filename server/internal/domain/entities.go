@@ -22,6 +22,12 @@ func NewDisplay(id string, commandList json.RawMessage) *Display {
 	}
 }
 
+func (d *Display) RemoveSubscriber(controllerID string) {
+	d.Mu.Lock()
+	defer d.Mu.Unlock()
+	delete(d.Subscribers, controllerID)
+}
+
 // Controller represents a connected Controller client.
 type Controller struct {
 	ID            string

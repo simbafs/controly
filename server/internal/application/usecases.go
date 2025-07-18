@@ -176,9 +176,14 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 	for _, displayID := range subscriptionsToUpdate {
 		if displayIface, displayFound := uc.DisplayRepo.FindByID(displayID); displayFound {
 			actualDisplay := displayIface.(*domain.Display)
-			actualDisplay.Mu.Lock()
-			delete(actualDisplay.Subscribers, controllerID)
-			actualDisplay.Mu.Unlock()
+			actualDisplay.RemoveSubscriber(controllerID)
+
+			// Notify the display that a controller has unsubscribed
+			unsubscribedCount := len(actualDisplay.Subscribers)
+			unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
+			if err := uc.ConnManager.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload); err != nil {
+				log.Printf("Error sending 'unsubscribed' message to display '%s': %v", displayID, err)
+			}
 		}
 	}
 

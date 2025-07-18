@@ -101,12 +101,13 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 	 * @throws {Error} if the WebSocket is not connected.
 	 */
 	public sendCommand(displayId: string, command: CommandPayload): void {
-		this.sendMessage({
+		this.send({
 			type: 'command',
 			to: displayId,
 			payload: command,
 		})
 	}
+}
 
 	/**
 	 * Processes incoming messages from the server, specific to the Controller client.
