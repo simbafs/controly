@@ -1,0 +1,24 @@
+{
+  "name": "controly-sdk",
+  "version": "1.0.0",
+  "description": "SDK for the Controly real-time communication system.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "controly",
+    "websocket",
+    "real-time"
+  ],
+  "author": "Gemini",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
