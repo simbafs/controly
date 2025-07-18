@@ -4,7 +4,7 @@ import { setupControlPanel } from './ControlPanel'
 import { Controller } from 'controly-sdk'
 
 const appElement = document.querySelector<HTMLDivElement>('#app')!
-const SERVER_URL = 'ws://localhost:8080/ws' // Assuming local server for now
+const SERVER_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 let controlyController: Controller | null = null
 

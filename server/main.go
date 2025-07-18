@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 
@@ -22,6 +24,9 @@ type wsHandlerDependencies struct {
 	controllerMessageHandlingUC *application.ControllerMessageHandlingUseCase
 	wsGateway                   *infrastructure.GorillaWebSocketGateway
 }
+
+//go:embed all:controller/*
+var files embed.FS
 
 func main() {
 	// Initialize Infrastructure Adapters
@@ -48,12 +53,12 @@ func main() {
 	controllerConnectionUC := &application.ControllerConnectionUseCase{
 		ControllerRepo:   controllerRepo,
 		WebSocketService: wsGateway,
-		IDGenerator:      idGenerator, // Added IDGenerator
+		IDGenerator:      idGenerator,
 	}
 
 	controllerDisconnectionUC := &application.ControllerDisconnectionUseCase{
 		ControllerRepo: controllerRepo,
-		DisplayRepo:    displayRepo, // Added DisplayRepo
+		DisplayRepo:    displayRepo,
 		ConnManager:    wsGateway,
 	}
 
@@ -75,7 +80,7 @@ func main() {
 	}
 	deleteControllerUC := &application.DeleteControllerUseCase{
 		ControllerRepo: controllerRepo,
-		DisplayRepo:    displayRepo, // Added DisplayRepo
+		DisplayRepo:    displayRepo,
 		ConnManager:    wsGateway,
 	}
 
@@ -100,6 +105,13 @@ func main() {
 	deleteDisplayHandler := delivery.NewDeleteDisplayHandler(deleteDisplayUC)
 	deleteControllerHandler := delivery.NewDeleteControllerHandler(deleteControllerUC)
 
+	// Initialize Frontend Handler
+	contentFs, err := fs.Sub(files, "controller/dist")
+	if err != nil {
+		panic(err)
+	}
+	frontendHandler := delivery.NewFrontendHandler(contentFs)
+
 	// Setup router
 	router := mux.NewRouter()
 
@@ -110,6 +122,9 @@ func main() {
 	router.Handle("/api/connections", connectionsHandler).Methods("GET")
 	router.Handle("/api/displays/{id}", deleteDisplayHandler).Methods("DELETE")
 	router.Handle("/api/controllers/{id}", deleteControllerHandler).Methods("DELETE")
+
+	// Serve embedded frontend files
+	router.PathPrefix("/").Handler(frontendHandler)
 
 	log.Println("Relay Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
