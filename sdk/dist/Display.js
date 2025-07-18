@@ -1,10 +1,7 @@
-"use strict";
 /**
  * @file Implements the Display client for the Controly SDK.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Display = void 0;
-const ControlyBase_1 = require("./ControlyBase");
+import { ControlyBase } from './ControlyBase';
 /**
  * The Display client for Controly.
  * This class is used for devices that need to be controlled remotely.
@@ -31,7 +28,7 @@ const ControlyBase_1 = require("./ControlyBase");
  * display.connect();
  * ```
  */
-class Display extends ControlyBase_1.ControlyBase {
+export class Display extends ControlyBase {
     /**
      * Creates an instance of a Display client.
      * @param options The configuration options for the Display.
@@ -112,4 +109,3 @@ class Display extends ControlyBase_1.ControlyBase {
         }
     }
 }
-exports.Display = Display;

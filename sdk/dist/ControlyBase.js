@@ -1,9 +1,6 @@
-"use strict";
 /**
  * @file Implements the base client with common WebSocket logic for Controly.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ControlyBase = void 0;
 /**
  * An internal, simple event emitter.
  * @template T - A map of event names to their handler types.
@@ -39,7 +36,7 @@ class EventEmitter {
  * Abstract base class for Controly clients, handling common WebSocket functionality.
  * @template EventMap - A map of event names to their handler types.
  */
-class ControlyBase {
+export class ControlyBase {
     /**
      * Creates an instance of ControlyBase.
      * @param serverUrl The WebSocket URL of the relay server (e.g., 'ws://localhost:8080/ws').
@@ -152,4 +149,3 @@ class ControlyBase {
         return this.clientId;
     }
 }
-exports.ControlyBase = ControlyBase;

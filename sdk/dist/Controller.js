@@ -1,10 +1,7 @@
-"use strict";
 /**
  * @file Implements the Controller client for the Controly SDK.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Controller = void 0;
-const ControlyBase_1 = require("./ControlyBase");
+import { ControlyBase } from './ControlyBase';
 /**
  * The Controller client for Controly.
  * This class is used for clients that need to control one or more Displays.
@@ -41,7 +38,7 @@ const ControlyBase_1 = require("./ControlyBase");
  * });
  * ```
  */
-class Controller extends ControlyBase_1.ControlyBase {
+export class Controller extends ControlyBase {
     /**
      * Creates an instance of a Controller client.
      * @param options The configuration options for the Controller.
@@ -110,4 +107,3 @@ class Controller extends ControlyBase_1.ControlyBase {
         }
     }
 }
-exports.Controller = Controller;
