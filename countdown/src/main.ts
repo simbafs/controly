@@ -40,7 +40,7 @@ const handleSubscribe = ({ count }: { count: number }) => {
 }
 
 display.on('subscribed', handleSubscribe)
-display.on('unsubscribed', handleSubscribe) // BUG: server not send this event
+display.on('unsubscribed', handleSubscribe)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let init_time = 60
