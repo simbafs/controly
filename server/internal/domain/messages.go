@@ -21,3 +21,13 @@ type ErrorPayload struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
+
+// SubscribedPayload represents the payload for a "subscribed" message
+type SubscribedPayload struct {
+	Count int `json:"count"`
+}
+
+// UnsubscribedPayload represents the payload for an "unsubscribed" message
+type UnsubscribedPayload struct {
+	Count int `json:"count"`
+}

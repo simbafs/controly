@@ -43,6 +43,7 @@ class Display extends ControlyBase_1.ControlyBase {
             command_url: options.commandUrl,
         });
         this.commandHandlers = new Map();
+        this._subscriberCount = 0;
     }
     /**
      * Registers a handler function for a specific command.
@@ -71,6 +72,13 @@ class Display extends ControlyBase_1.ControlyBase {
         });
     }
     /**
+     * Returns the current number of controllers subscribed to this Display.
+     * @returns The number of subscribed controllers.
+     */
+    subscribers() {
+        return this._subscriberCount;
+    }
+    /**
      * Processes incoming messages from the server, specific to the Display client.
      * @param message The parsed message from the server.
      * @internal
@@ -91,6 +99,16 @@ class Display extends ControlyBase_1.ControlyBase {
                 // It's not mandatory to handle all commands, so we just log a warning.
                 console.warn(`Received unhandled command: "${command.name}"`);
             }
+        }
+        else if (message.type === 'subscribed') {
+            const payload = message.payload;
+            this._subscriberCount = payload.count;
+            this.emitter.emit('subscribed', payload, message.from);
+        }
+        else if (message.type === 'unsubscribed') {
+            const payload = message.payload;
+            this._subscriberCount = payload.count;
+            this.emitter.emit('unsubscribed', payload, message.from);
         }
     }
 }

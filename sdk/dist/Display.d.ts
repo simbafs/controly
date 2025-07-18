@@ -42,6 +42,7 @@ export interface DisplayOptions {
  */
 export declare class Display extends ControlyBase<DisplayEventMap> {
     private commandHandlers;
+    private _subscriberCount;
     /**
      * Creates an instance of a Display client.
      * @param options The configuration options for the Display.
@@ -66,6 +67,11 @@ export declare class Display extends ControlyBase<DisplayEventMap> {
      * @throws {Error} if the WebSocket is not connected.
      */
     updateStatus(payload: StatusPayload): void;
+    /**
+     * Returns the current number of controllers subscribed to this Display.
+     * @returns The number of subscribed controllers.
+     */
+    subscribers(): number;
     /**
      * Processes incoming messages from the server, specific to the Display client.
      * @param message The parsed message from the server.

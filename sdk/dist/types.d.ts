@@ -4,7 +4,7 @@
 /**
  * Represents the type of a WebSocket message.
  */
-export type MessageType = 'set_id' | 'command_list' | 'command' | 'status' | 'subscribe' | 'unsubscribe' | 'notification' | 'error';
+export type MessageType = 'set_id' | 'command_list' | 'command' | 'status' | 'subscribe' | 'unsubscribe' | 'notification' | 'error' | 'subscribed' | 'unsubscribed';
 /**
  * Base interface for all WebSocket messages.
  */
@@ -68,6 +68,18 @@ export interface ErrorPayload {
     message: string;
 }
 /**
+ * Payload for the 'subscribed' message from the server.
+ */
+export interface SubscribedPayload {
+    count: number;
+}
+/**
+ * Payload for the 'unsubscribed' message from the server.
+ */
+export interface UnsubscribedPayload {
+    count: number;
+}
+/**
  * Base interface for all command definitions.
  */
 interface CommandBase {
@@ -126,6 +138,14 @@ export type CloseHandler = () => void;
  */
 export type ErrorHandler = ControlyEventHandler<ErrorPayload>;
 /**
+ * Handler for 'subscribed' events.
+ */
+export type SubscribedHandler = ControlyEventHandler<SubscribedPayload>;
+/**
+ * Handler for 'unsubscribed' events.
+ */
+export type UnsubscribedHandler = ControlyEventHandler<UnsubscribedPayload>;
+/**
  * Handler for 'status' events from a Display.
  */
 export type StatusHandler = ControlyEventHandler<StatusPayload>;
@@ -161,6 +181,8 @@ export interface DisplayEventMap {
     open: OpenHandler;
     close: CloseHandler;
     error: ErrorHandler;
+    subscribed: SubscribedHandler;
+    unsubscribed: UnsubscribedHandler;
     [key: string]: (...args: any[]) => void;
 }
 export {};

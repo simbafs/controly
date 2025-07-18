@@ -14,6 +14,8 @@ export type MessageType =
 	| 'unsubscribe'
 	| 'notification'
 	| 'error'
+	| 'subscribed'
+	| 'unsubscribed'
 
 /**
  * Base interface for all WebSocket messages.
@@ -89,6 +91,20 @@ export interface ErrorPayload {
 	message: string
 }
 
+/**
+ * Payload for the 'subscribed' message from the server.
+ */
+export interface SubscribedPayload {
+	count: number
+}
+
+/**
+ * Payload for the 'unsubscribed' message from the server.
+ */
+export interface UnsubscribedPayload {
+	count: number
+}
+
 // --- Command Definitions for command.json ---
 
 /**
@@ -161,6 +177,16 @@ export type CloseHandler = () => void
 export type ErrorHandler = ControlyEventHandler<ErrorPayload>
 
 /**
+ * Handler for 'subscribed' events.
+ */
+export type SubscribedHandler = ControlyEventHandler<SubscribedPayload>
+
+/**
+ * Handler for 'unsubscribed' events.
+ */
+export type UnsubscribedHandler = ControlyEventHandler<UnsubscribedPayload>
+
+/**
  * Handler for 'status' events from a Display.
  */
 export type StatusHandler = ControlyEventHandler<StatusPayload>
@@ -204,5 +230,7 @@ export interface DisplayEventMap {
 	open: OpenHandler
 	close: CloseHandler
 	error: ErrorHandler
+	subscribed: SubscribedHandler
+	unsubscribed: UnsubscribedHandler
 	[key: string]: (...args: any[]) => void
 }

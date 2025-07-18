@@ -145,6 +145,8 @@
     - `subscribe` (Controller -> Server): Controller 用於訂閱一個或多個 Display。
     - `unsubscribe` (Controller -> Server): Controller 用於取消訂閱。
     - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。`from` 會是 "server"。
+    - `subscribed` (Server -> Display): 伺服器發送給 Display 的，告知有新的 Controller 訂閱了它。`from` 會是 "server"。
+    - `unsubscribed` (Server -> Display): 伺服器發送給 Display 的，告知有 Controller 取消訂閱或斷線。`from` 會是 "server"。
     - `error` (Server -> Client): 伺服器發送的錯誤通知。`from` 會是 "server"。
 
 - **範例**:
@@ -178,6 +180,26 @@
         	"payload": {
         		"playback_state": "playing",
         		"current_volume": 80
+        	}
+        }
+        ```
+    - **訂閱成功通知 (`subscribed`, S -> D)**:
+        ```json
+        {
+        	"type": "subscribed",
+        	"from": "server",
+        	"payload": {
+        		"count": 2
+        	}
+        }
+        ```
+    - **取消訂閱通知 (`unsubscribed`, S -> D)**:
+        ```json
+        {
+        	"type": "unsubscribed",
+        	"from": "server",
+        	"payload": {
+        		"count": 1
         	}
         }
         ```
@@ -343,13 +365,15 @@ setInterval(() => {
 - `.connect()`: 啟動與伺服器的連線。
 - `.disconnect()`: 關閉連線。
 - `.on(eventName, callback)`: 註冊事件監聽器。
-    - `eventName` (string): 事件名稱。可以是連線事件 (`open`, `close`, `error`) 。
+    - `eventName` (string): 事件名稱。可以是連線事件 (`open`, `close`, `error`, `subscribed`, `unsubscribed`) 。
     - `callback(payload, fromId)`: 事件觸發時的回呼函式。
 - `.command(commandName, callback)`：註冊命令處理函數。
     - `commandName` (string)：命令名稱。不必要是 `command.json` 中的命令，不強制檢查。
     - `callback(args, fromID)`：收到命令時的回呼函式。
 - `.updateStatus(statusPayload)`: 向所有訂閱的 Controller 廣播目前的狀態。
     - `statusPayload` (object): 任何可被序列化為 JSON 的物件。
+- `.subscribers()`: 獲取目前訂閱此 Display 的 Controller 數量。
+    - 回傳值 (number): 訂閱的 Controller 數量。
 
 ### 8.2. `controly.Controller`
 

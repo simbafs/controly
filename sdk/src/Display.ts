@@ -3,7 +3,7 @@
  */
 
 import { ControlyBase } from './ControlyBase'
-import { OutgoingMessage, StatusPayload, CommandHandler, CommandPayload, DisplayEventMap } from './types'
+import { OutgoingMessage, StatusPayload, CommandHandler, CommandPayload, DisplayEventMap, SubscribedPayload, UnsubscribedPayload } from './types'
 
 /**
  * Represents the options for creating a Display instance.
@@ -45,6 +45,7 @@ export interface DisplayOptions {
  */
 export class Display extends ControlyBase<DisplayEventMap> {
 	private commandHandlers: Map<string, CommandHandler<any>> = new Map()
+	private _subscriberCount: number = 0
 
 	/**
 	 * Creates an instance of a Display client.
@@ -90,6 +91,14 @@ export class Display extends ControlyBase<DisplayEventMap> {
 	}
 
 	/**
+	 * Returns the current number of controllers subscribed to this Display.
+	 * @returns The number of subscribed controllers.
+	 */
+	public subscribers(): number {
+		return this._subscriberCount
+	}
+
+	/**
 	 * Processes incoming messages from the server, specific to the Display client.
 	 * @param message The parsed message from the server.
 	 * @internal
@@ -108,6 +117,14 @@ export class Display extends ControlyBase<DisplayEventMap> {
 				// It's not mandatory to handle all commands, so we just log a warning.
 				console.warn(`Received unhandled command: "${command.name}"`)
 			}
+		} else if (message.type === 'subscribed') {
+			const payload = message.payload as SubscribedPayload
+			this._subscriberCount = payload.count
+			this.emitter.emit('subscribed', payload, message.from)
+		} else if (message.type === 'unsubscribed') {
+			const payload = message.payload as UnsubscribedPayload
+			this._subscriberCount = payload.count
+			this.emitter.emit('unsubscribed', payload, message.from)
 		}
 	}
 }

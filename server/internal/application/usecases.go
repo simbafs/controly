@@ -348,6 +348,13 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 				log.Printf("Error sending command_list to controller '%s' for display '%s': %v", controllerID, displayID, err)
 				// Continue to next display even if one fails
 			}
+
+			// Notify the display that a new controller has subscribed
+			subscribedCount := len(actualDisplay.Subscribers)
+			subscribedPayload, _ := json.Marshal(domain.SubscribedPayload{Count: subscribedCount})
+			if err := uc.WebSocketService.SendMessage(displayID, "server", "subscribed", subscribedPayload); err != nil {
+				log.Printf("Error sending 'subscribed' message to display '%s': %v", displayID, err)
+			}
 		}
 		log.Printf("Controller '%s' subscribed to displays: %v", controllerID, payload.DisplayIDs)
 
@@ -371,6 +378,13 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 				delete(actualDisplay.Subscribers, controllerID) // Remove controller from display's subscribers
 				actualDisplay.Mu.Unlock()
 				uc.DisplayRepo.Save(actualDisplay) // Persist display changes
+
+				// Notify the display that a controller has unsubscribed
+				unsubscribedCount := len(actualDisplay.Subscribers)
+				unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
+				if err := uc.WebSocketService.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload); err != nil {
+					log.Printf("Error sending 'unsubscribed' message to display '%s': %v", displayID, err)
+				}
 			}
 			delete(controller.Subscriptions, displayID) // Remove display from controller's subscriptions
 			uc.ControllerRepo.Save(controller)          // Persist controller changes
