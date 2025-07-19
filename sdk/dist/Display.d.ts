@@ -13,6 +13,8 @@ export interface DisplayOptions {
     commandUrl: string;
     /** An optional, self-specified ID for this Display. */
     id?: string;
+    /** An optional token for authentication. */
+    token?: string;
 }
 /**
  * The Display client for Controly.
@@ -25,6 +27,7 @@ export interface DisplayOptions {
  *   serverUrl: 'ws://localhost:8080/ws',
  *   id: 'my-unique-display-01',
  *   commandUrl: 'https://example.com/commands.json',
+ *   token: 'your-secret-token', // Optional
  * });
  *
  * display.command('play_pause', (args, fromControllerId) => {

@@ -15,6 +15,8 @@ export interface DisplayOptions {
 	commandUrl: string
 	/** An optional, self-specified ID for this Display. */
 	id?: string
+	/** An optional token for authentication. */
+	token?: string
 }
 
 /**
@@ -28,6 +30,7 @@ export interface DisplayOptions {
  *   serverUrl: 'ws://localhost:8080/ws',
  *   id: 'my-unique-display-01',
  *   commandUrl: 'https://example.com/commands.json',
+ *   token: 'your-secret-token', // Optional
  * });
  *
  * display.command('play_pause', (args, fromControllerId) => {
@@ -56,6 +59,7 @@ export class Display extends ControlyBase<DisplayEventMap> {
 			type: 'display',
 			id: options.id || '',
 			command_url: options.commandUrl,
+			token: options.token || '',
 		})
 	}
 

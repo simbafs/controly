@@ -13,6 +13,7 @@ import { ControlyBase } from './ControlyBase';
  *   serverUrl: 'ws://localhost:8080/ws',
  *   id: 'my-unique-display-01',
  *   commandUrl: 'https://example.com/commands.json',
+ *   token: 'your-secret-token', // Optional
  * });
  *
  * display.command('play_pause', (args, fromControllerId) => {
@@ -38,6 +39,7 @@ export class Display extends ControlyBase {
             type: 'display',
             id: options.id || '',
             command_url: options.commandUrl,
+            token: options.token || '',
         });
         this.commandHandlers = new Map();
         this._subscriberCount = 0;

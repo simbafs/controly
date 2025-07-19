@@ -1,13 +1,15 @@
 import './style.css'
 import { Display } from 'controly-sdk'
 import QRcode from 'qrcode'
+import type { ErrorPayload } from 'controly-sdk/dist/types'
 
 const $ = document.querySelector.bind(document)
 
-function initializeDisplay(serverUrl: string) {
+function initializeDisplay(serverUrl: string, token?: string) {
 	const display = new Display({
 		serverUrl: serverUrl,
 		commandUrl: `${window.location.origin}/command.json`,
+		token,
 	})
 
 	display.on('open', id => {
@@ -24,6 +26,11 @@ function initializeDisplay(serverUrl: string) {
       <p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
     `
 		})
+	})
+
+	display.on('error', (error: ErrorPayload) => {
+		console.error('Connection error:', error)
+		main(`Connection failed: ${error.message} (code: ${error.code})`)
 	})
 
 	const handleSubscribe = ({ count }: { count: number }) => {
@@ -93,20 +100,34 @@ function initializeDisplay(serverUrl: string) {
 	display.connect()
 }
 
-function main() {
+function main(error: string | null = null) {
 	const app = document.querySelector<HTMLDivElement>('#app')!
+
+	const errorHtml = error
+		? `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6 w-full max-w-md text-left">
+         <strong class="font-bold">Error:</strong>
+         <span class="block sm:inline">${error}</span>
+       </div>`
+		: ''
+
 	app.innerHTML = `
-    <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
-      <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
-      <input type="text" id="server-url-input" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
-      <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
+    <div class="w-full h-full flex flex-col justify-center items-center text-center">
+      ${errorHtml}
+      <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
+        <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
+        <input type="text" id="server-url-input" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+        <input type="password" id="token-input" placeholder="Enter token (optional)" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+        <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
+      </div>
     </div>
   `
 
 	const connectBtn = $<HTMLButtonElement>('#connect-btn')!
 	connectBtn.addEventListener('click', () => {
 		const serverUrlInput = $<HTMLInputElement>('#server-url-input')!
+		const tokenInput = $<HTMLInputElement>('#token-input')!
 		const serverUrl = serverUrlInput.value.trim()
+		const token = tokenInput.value.trim()
 
 		if (!serverUrl) {
 			alert('Please enter a server URL.')
@@ -122,7 +143,7 @@ function main() {
     `
 
 		// Now initialize the display and the rest of the application
-		initializeDisplay(serverUrl)
+		initializeDisplay(serverUrl, token)
 	})
 }
 
