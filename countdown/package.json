@@ -13,8 +13,10 @@
     "vite": "^7.0.4"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.11",
     "@types/qrcode": "^1.5.5",
     "controly-sdk": "link:../sdk",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "tailwindcss": "^4.1.11"
   }
 }

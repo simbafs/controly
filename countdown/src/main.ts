@@ -20,8 +20,8 @@ function initializeDisplay(serverUrl: string) {
 
 		QRcode.toDataURL(id).then(img => {
 			$qrcode.innerHTML = `
-      <img src="${img}" alt="Display QR Code" />
-      <p class="display-id">${id}</p>
+      <img src="${img}" alt="Display QR Code" class="w-[300px] h-[300px]" />
+      <p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
     `
 		})
 	})
@@ -32,12 +32,12 @@ function initializeDisplay(serverUrl: string) {
 		console.log({ count })
 		if (count === 0) {
 			console.log('true')
-			$qrcode.style.display = 'flex'
-			$time.style.display = 'none'
+			$qrcode.classList.remove('hidden')
+			$time.classList.add('hidden')
 		} else {
 			console.log('false')
-			$qrcode.style.display = 'none'
-			$time.style.display = 'block'
+			$qrcode.classList.add('hidden')
+			$time.classList.remove('hidden')
 		}
 	}
 
@@ -96,10 +96,10 @@ function initializeDisplay(serverUrl: string) {
 function main() {
 	const app = document.querySelector<HTMLDivElement>('#app')!
 	app.innerHTML = `
-    <div id="server-url-container" style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
-      <h2>Enter Server URL</h2>
-      <input type="text" id="server-url-input" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws" />
-      <button id="connect-btn">Connect</button>
+    <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
+      <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
+      <input type="text" id="server-url-input" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+      <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
     </div>
   `
 
@@ -115,8 +115,10 @@ function main() {
 
 		// Clear the app container and set up the countdown view
 		app.innerHTML = `
-      <div id="qrcode"></div>
-      <div id="time" style="display: none;">60</div>
+      <div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
+        <!-- QR Code will be inserted here -->
+      </div>
+      <div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
     `
 
 		// Now initialize the display and the rest of the application
