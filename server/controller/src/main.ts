@@ -5,6 +5,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode'
 const $ = document.querySelector.bind(document)
 
 const SERVER_URL = location.origin.replace('http', 'ws') + '/ws'
+// const SERVER_URL = 'ws://localhost:8080/ws'
 
 const controller = new Controller({ serverUrl: SERVER_URL })
 let html5QrcodeScanner: Html5QrcodeScanner | null = null
@@ -198,6 +199,14 @@ controller.on('open', () => {
 	$<HTMLButtonElement>('#open-scanner')!.addEventListener('click', handleOpenScanner)
 	$<HTMLButtonElement>('#connect-display')!.addEventListener('click', () => handleAddDisplay())
 	$<HTMLButtonElement>('#close-scanner')!.addEventListener('click', closeScanner)
+
+	const param = new URLSearchParams(window.location.search)
+	const ids = param.getAll('id')
+
+	for (const id of ids) {
+		console.log(id)
+		handleAddDisplay(id)
+	}
 })
 
 controller.on('close', () => {
