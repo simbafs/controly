@@ -1,5 +1,5 @@
 {
-  "name": "controly-sdk",
+  "name": "controly",
   "version": "1.0.0",
   "description": "SDK for the Controly real-time communication system.",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     "websocket",
     "real-time"
   ],
-  "author": "Gemini",
+  "author": "SimbaFs <me@simbafs.cc>",
   "license": "MIT",
   "devDependencies": {
     "typescript": "^5.0.0"

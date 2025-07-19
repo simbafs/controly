@@ -9,11 +9,11 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"controly-sdk": "link:../../sdk",
+		"@tailwindcss/vite": "^4.1.11",
+		"controly": "^1.0.0",
 		"html5-qrcode": "^2.3.8",
-		"typescript": "~5.8.3",
-		"vite": "^7.0.4",
 		"tailwindcss": "^4.0.0",
-		"@tailwindcss/vite": "^4.1.11"
+		"typescript": "~5.8.3",
+		"vite": "^7.0.4"
 	}
 }

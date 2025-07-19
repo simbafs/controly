@@ -118,6 +118,6 @@ func main() {
 	// Serve embedded frontend files
 	router.PathPrefix("/").Handler(frontendHandler)
 
-	log.Println("Relay Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Printf("Relay Server started on %s", cfg.Addr)
+	log.Fatal(http.ListenAndServe(cfg.Addr, router))
 }

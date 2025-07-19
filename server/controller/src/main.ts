@@ -1,5 +1,5 @@
 import './style.css'
-import { Controller, type Command } from 'controly-sdk'
+import { Controller, type Command } from 'controly'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 
 const $ = document.querySelector.bind(document)
