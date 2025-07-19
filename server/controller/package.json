@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "html5-qrcode": "^2.3.8",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   },
   "dependencies": {
-    "controly-sdk": "link:../../sdk",
-    "html5-qrcode": "^2.3.8"
+    "controly-sdk": "link:../../sdk"
   }
 }

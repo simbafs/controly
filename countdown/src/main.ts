@@ -20,7 +20,10 @@ display.on('open', id => {
 	}
 
 	QRcode.toDataURL(id).then(img => {
-		$qrcode.innerHTML = `<img src="${img}" alt="Display QR Code" />`
+		$qrcode.innerHTML = `
+      <img src="${img}" alt="Display QR Code" />
+      <p class="display-id">${id}</p>
+    `
 	})
 })
 
@@ -81,10 +84,10 @@ display.command('reset', () => {
 	updateTime(init_time)
 })
 
-display.command('set_time', ({ args }: { args: { value: number } }) => {
+display.command('set_time', ({ value }: { value: number }) => {
 	clearInterval(timer!)
 	timer = null
-	time = init_time = args.value
+	time = init_time = value
 	updateTime(time)
 })
 
