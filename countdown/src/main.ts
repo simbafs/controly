@@ -5,12 +5,23 @@ import type { ErrorPayload } from 'controly-sdk/dist/types'
 
 const $ = document.querySelector.bind(document)
 
-function initializeDisplay(serverUrl: string, token?: string) {
+function initializeDisplay(serverUrl: string, { token, id }: { token?: string; id?: string } = {}) {
+	$<HTMLDivElement>('#app')!.innerHTML = `
+      <div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
+        <!-- QR Code will be inserted here -->
+      </div>
+      <div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
+    `
+
+	console.log({ serverUrl, id, token })
 	const display = new Display({
 		serverUrl: serverUrl,
 		commandUrl: `${window.location.origin}/command.json`,
 		token,
+		id,
 	})
+
+	console.log('hi')
 
 	display.on('open', id => {
 		const $qrcode = $('#qrcode') as HTMLDivElement
@@ -134,17 +145,23 @@ function main(error: string | null = null) {
 			return
 		}
 
-		// Clear the app container and set up the countdown view
-		app.innerHTML = `
-      <div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
-        <!-- QR Code will be inserted here -->
-      </div>
-      <div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
-    `
-
 		// Now initialize the display and the rest of the application
-		initializeDisplay(serverUrl, token)
+		initializeDisplay(serverUrl, {
+			token,
+		})
 	})
+
+	const param = new URLSearchParams(window.location.search)
+	const serverUrl = param.get('serverUrl')
+	const token = param.get('token')
+	const id = param.get('id')
+
+	if (serverUrl != null) {
+		initializeDisplay(serverUrl, {
+			token: token || undefined,
+			id: id || undefined,
+		})
+	}
 }
 
 main()
