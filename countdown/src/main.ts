@@ -18,7 +18,7 @@ function initializeDisplay(serverUrl: string) {
 			return
 		}
 
-		QRcode.toDataURL(id).then(img => {
+		QRcode.toDataURL(id, { width: 600 }).then(img => {
 			$qrcode.innerHTML = `
       <img src="${img}" alt="Display QR Code" class="w-[300px] h-[300px]" />
       <p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
