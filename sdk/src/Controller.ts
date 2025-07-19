@@ -10,6 +10,7 @@ import {
 	StatusPayload,
 	CommandListPayload,
 	NotificationPayload,
+	DisplayDisconnectedPayload,
 } from './types'
 
 /**
@@ -47,6 +48,11 @@ export interface ControllerOptions {
  * controller.on('status', (status, fromDisplayId) => {
  *   console.log(`Status from ${fromDisplayId}:`, status);
  *   // Update the UI with the new status
+ * });
+ *
+ * controller.on('display_disconnected', (displayId) => {
+ *  console.log(`Display ${displayId} has disconnected.`);
+ *  // Remove the UI for the disconnected display
  * });
  *
  * controller.connect();
@@ -101,13 +107,12 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 	 * @throws {Error} if the WebSocket is not connected.
 	 */
 	public sendCommand(displayId: string, command: CommandPayload): void {
-		this.send({
+		this.sendMessage({
 			type: 'command',
 			to: displayId,
 			payload: command,
 		})
 	}
-}
 
 	/**
 	 * Processes incoming messages from the server, specific to the Controller client.
@@ -126,6 +131,12 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 				break
 			case 'notification':
 				this.emitter.emit('notification', payload as NotificationPayload, from)
+				break
+			case 'display_disconnected':
+				this.emitter.emit(
+					'display_disconnected',
+					(payload as DisplayDisconnectedPayload).display_id,
+				)
 				break
 			default:
 				// Other message types are ignored by the controller.

@@ -31,3 +31,8 @@ type SubscribedPayload struct {
 type UnsubscribedPayload struct {
 	Count int `json:"count"`
 }
+
+// DisplayDisconnectedPayload represents the payload for a "display_disconnected" message
+type DisplayDisconnectedPayload struct {
+	DisplayID string `json:"display_id"`
+}

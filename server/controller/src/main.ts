@@ -211,6 +211,14 @@ controller.on('status', (status, from) => {
 	}
 })
 
+controller.on('display_disconnected', displayId => {
+	const controlGroup = document.querySelector(`.control-group[data-display-id="${displayId}"]`)
+	if (controlGroup) {
+		controlGroup.remove()
+		console.log(`Removed control group for disconnected display: ${displayId}`)
+	}
+})
+
 controller.connect()
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `

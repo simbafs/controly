@@ -102,7 +102,12 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 
 	// Now, notify subscribers and update their subscriptions without holding the display lock.
 	for _, controllerID := range subscribersToNotify {
-		// uc.ConnManager.SendError(controllerID, domain.ErrTargetDisplayNotFound, fmt.Sprintf("Display '%s' disconnected.", displayID))
+		// Notify controller that the display has disconnected
+		payload, _ := json.Marshal(domain.DisplayDisconnectedPayload{DisplayID: displayID})
+		if err := uc.ConnManager.SendMessage(controllerID, "server", "display_disconnected", payload); err != nil {
+			log.Printf("Error sending 'display_disconnected' message to controller '%s': %v", controllerID, err)
+		}
+
 		if controller, controllerFound := uc.ControllerRepo.FindByID(controllerID); controllerFound {
 			controller.Mu.Lock()
 			delete(controller.Subscriptions, displayID)

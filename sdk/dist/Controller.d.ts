@@ -39,6 +39,11 @@ export interface ControllerOptions {
  *   // Update the UI with the new status
  * });
  *
+ * controller.on('display_disconnected', (displayId) => {
+ *  console.log(`Display ${displayId} has disconnected.`);
+ *  // Remove the UI for the disconnected display
+ * });
+ *
  * controller.connect();
  *
  * // Later, to send a command:

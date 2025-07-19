@@ -80,6 +80,12 @@ export interface UnsubscribedPayload {
     count: number;
 }
 /**
+ * Payload for the 'display_disconnected' message from the server.
+ */
+export interface DisplayDisconnectedPayload {
+    display_id: string;
+}
+/**
  * Base interface for all command definitions.
  */
 interface CommandBase {
@@ -158,6 +164,10 @@ export type CommandListHandler = ControlyEventHandler<CommandListPayload>;
  */
 export type NotificationHandler = ControlyEventHandler<NotificationPayload>;
 /**
+ * Handler for 'display_disconnected' events from the server.
+ */
+export type DisplayDisconnectedHandler = (displayId: string) => void;
+/**
  * Handler for a specific command from a Controller.
  * @template T - The type of the command arguments.
  */
@@ -172,6 +182,7 @@ export interface ControllerEventMap {
     status: StatusHandler;
     command_list: CommandListHandler;
     notification: NotificationHandler;
+    display_disconnected: DisplayDisconnectedHandler;
     [key: string]: (...args: any[]) => void;
 }
 /**
