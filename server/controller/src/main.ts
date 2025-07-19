@@ -14,9 +14,24 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 	container.classList.add('control-group')
 	container.dataset.displayId = displayID
 
+	const header = document.createElement('div')
+	header.classList.add('control-group-header')
+
 	const title = document.createElement('h3')
 	title.textContent = `Display: ${displayID}`
-	container.appendChild(title)
+
+	const disconnectBtn = document.createElement('button')
+	disconnectBtn.textContent = 'Disconnect'
+	disconnectBtn.classList.add('disconnect-btn')
+	disconnectBtn.addEventListener('click', () => {
+		controller.unsubscribe([displayID])
+		container.remove()
+		console.log(`Unsubscribed from and removed display: ${displayID}`)
+	})
+
+	header.appendChild(title)
+	header.appendChild(disconnectBtn)
+	container.appendChild(header)
 
 	for (const cmd of commandList) {
 		const controlWrapper = document.createElement('div')
@@ -162,10 +177,12 @@ function handleOpenScanner() {
 }
 
 function handleAddDisplay(id?: string) {
-	const displayId = id || $<HTMLInputElement>('#id-input')!.value.trim()
+	const $input = $<HTMLInputElement>('#id-input')!
+	const displayId = id || $input!.value.trim()
 	if (!displayId) return
 	console.log(`Subscribing to display: ${displayId}`)
 	controller.subscribe([displayId])
+	$input.value = ''
 }
 
 controller.on('open', () => {
@@ -224,10 +241,13 @@ controller.connect()
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <h1 id="connecting">Connecting...</h1>
   <div id="controller" style="display: none;">
-    <div>
+    <div class="connection-controls">
       <button id="open-scanner">Scan QR Code</button>
-      <input type="text" id="id-input" placeholder="Enter Display ID" />
-      <button id="connect-display">Connect</button>
+      <div class="separator">or</div>
+      <div class="manual-connect">
+        <input type="text" id="id-input" placeholder="Enter Display ID" />
+        <button id="connect-display">Connect</button>
+      </div>
     </div>
     <div id="controllers"></div>
   </div>

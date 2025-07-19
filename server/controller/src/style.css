@@ -36,14 +36,52 @@ body {
   align-items: center;
 }
 
-#controller > div:first-child {
+.connection-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+.manual-connect {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
 }
+
+#open-scanner {
+    width: 100%;
+}
+
+#id-input {
+    flex-grow: 1;
+}
+
+.separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #aaa;
+    font-size: 0.9em;
+    margin: 0.5rem 0;
+}
+
+.separator::before,
+.separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #ddd;
+}
+
+.separator:not(:empty)::before {
+    margin-right: .5em;
+}
+
+.separator:not(:empty)::after {
+    margin-left: .5em;
+}
+
 
 #controllers {
     display: flex;
@@ -64,11 +102,33 @@ body {
     text-align: left;
 }
 
-.control-group h3 {
-    margin: 0;
-    padding-bottom: 1rem;
+.control-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: -1.5rem -1.5rem 1rem -1.5rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid #ccc;
 }
+
+.control-group h3 {
+    margin: 0;
+}
+
+.disconnect-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 0.4em 0.8em;
+    font-size: 0.9em;
+    border-radius: 6px;
+}
+
+.disconnect-btn:hover {
+    background-color: #d32f2f;
+    border-color: transparent;
+}
+
 
 .control {
     display: flex;
