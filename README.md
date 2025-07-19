@@ -554,8 +554,3 @@ function sendVolumeCommand(displayId, volume) {
 	}
 ]
 ```
-
-# 已知 bug
-
-- unsubscribed message 不會發送
-- server/controller 不會顯示 status
