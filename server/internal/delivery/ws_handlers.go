@@ -70,9 +70,10 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 
 	displayIDParam := params.Get("id")
 	commandURL := params.Get("command_url")
+	token := params.Get("token")
 
 	// Use case handles registration in both repo and gateway.
-	displayID, err := h.displayRegistrationUC.Execute(conn, displayIDParam, commandURL)
+	displayID, err := h.displayRegistrationUC.Execute(conn, displayIDParam, commandURL, token)
 	if err != nil {
 		log.Printf("Display registration failed: %v", err)
 		// No cleanup needed as registration failed before any state was stored.

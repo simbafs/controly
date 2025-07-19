@@ -24,10 +24,22 @@ type DisplayRegistrationUseCase struct {
 	CommandFetcher   CommandFetcher
 	WebSocketService WebSocketConnectionManager
 	IDGenerator      IDGenerator // New dependency
+	ServerToken      string      // Server-wide token for authentication
 }
 
 // Execute registers a new display and its connection.
-func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, commandURL string) (string, error) {
+func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, commandURL, token string) (string, error) {
+	// Token validation
+	if uc.ServerToken != "" {
+		if token == "" {
+			sendErrorToConn(conn, domain.ErrAuthenticationFailed, "Token required.")
+			return "", fmt.Errorf("token required")
+		}
+		if uc.ServerToken != token {
+			sendErrorToConn(conn, domain.ErrAuthenticationFailed, "Invalid token.")
+			return "", fmt.Errorf("invalid token")
+		}
+	}
 	var err error
 	// If displayID is empty, generate a new unique ID
 	if displayID == "" {

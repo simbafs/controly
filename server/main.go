@@ -8,27 +8,18 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/simbafs/controly/server/internal/application"
+	"github.com/simbafs/controly/server/internal/config"
 	"github.com/simbafs/controly/server/internal/delivery"
 	"github.com/simbafs/controly/server/internal/infrastructure"
 )
-
-// wsHandlerDependencies holds the dependencies for the wsHandler
-// This struct is no longer strictly necessary as dependencies are passed directly to NewWsHandler,
-// but keeping it for now as it's part of the existing structure.
-type wsHandlerDependencies struct {
-	displayRegistrationUC       *application.DisplayRegistrationUseCase
-	displayDisconnectionUC      *application.DisplayDisconnectionUseCase
-	controllerConnectionUC      *application.ControllerConnectionUseCase
-	controllerDisconnectionUC   *application.ControllerDisconnectionUseCase
-	displayMessageHandlingUC    *application.DisplayMessageHandlingUseCase
-	controllerMessageHandlingUC *application.ControllerMessageHandlingUseCase
-	wsGateway                   *infrastructure.GorillaWebSocketGateway
-}
 
 //go:embed all:controller/*
 var files embed.FS
 
 func main() {
+	// Initialize Configuration
+	cfg := config.NewConfig()
+
 	// Initialize Infrastructure Adapters
 	displayRepo := infrastructure.NewInMemoryDisplayRepository()
 	controllerRepo := infrastructure.NewInMemoryControllerRepository()
@@ -42,6 +33,7 @@ func main() {
 		CommandFetcher:   commandFetcher,
 		WebSocketService: wsGateway,
 		IDGenerator:      idGenerator,
+		ServerToken:      cfg.Token,
 	}
 
 	displayDisconnectionUC := &application.DisplayDisconnectionUseCase{
