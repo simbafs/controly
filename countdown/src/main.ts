@@ -28,6 +28,7 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 		console.log(id)
 		if (!id) {
 			console.error('Display ID is not available.')
+			showErrorScreen('Display ID is not available.')
 			return
 		}
 
@@ -41,7 +42,7 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 
 	display.on('error', (error: ErrorPayload) => {
 		console.error('Connection error:', error)
-		main(`Connection failed: ${error.message} (code: ${error.code})`)
+		showErrorScreen(`Connection failed: ${error.message} (code: ${error.code})`)
 	})
 
 	const handleSubscribe = ({ count }: { count: number }) => {
@@ -111,19 +112,30 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 	display.connect()
 }
 
-function main(error: string | null = null) {
+function showErrorScreen(message: string) {
 	const app = document.querySelector<HTMLDivElement>('#app')!
+	app.innerHTML = `
+    <div class="w-full h-full flex flex-col justify-center items-center text-center">
+      <div class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
+        <h2 class="m-0 text-3xl font-bold text-red-600">An Error Occurred</h2>
+        <p class="text-gray-600 text-lg">${message}</p>
+        <button id="back-to-connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">
+          Back to Connection Page
+        </button>
+      </div>
+    </div>
+  `
 
-	const errorHtml = error
-		? `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6 w-full max-w-md text-left">
-         <strong class="font-bold">Error:</strong>
-         <span class="block sm:inline">${error}</span>
-       </div>`
-		: ''
+	document.querySelector<HTMLButtonElement>('#back-to-connect-btn')!.addEventListener('click', () => {
+		main()
+	})
+}
+
+function main() {
+	const app = document.querySelector<HTMLDivElement>('#app')!
 
 	app.innerHTML = `
     <div class="w-full h-full flex flex-col justify-center items-center text-center">
-      ${errorHtml}
       <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
         <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
         <input type="text" id="server-url-input" placeholder="ws:/ws" value="wss://controly.1li.tw/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
