@@ -16,7 +16,7 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 	console.log({ serverUrl, id, token })
 	const display = new Display({
 		serverUrl: serverUrl,
-		commandUrl: `${window.location.origin}/command.json`,
+		commandUrl: `${window.location}/command.json`,
 		token,
 		id,
 	})
@@ -126,7 +126,7 @@ function main(error: string | null = null) {
       ${errorHtml}
       <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
         <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
-        <input type="text" id="server-url-input" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+        <input type="text" id="server-url-input" placeholder="ws:/ws" value="wss://controly.1li.tw/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
         <input type="password" id="token-input" placeholder="Enter token (optional)" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
         <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
       </div>
