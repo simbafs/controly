@@ -12,7 +12,7 @@
 
 - **中繼伺服器 (Relay Server)**：作為通訊中樞，負責管理所有連線、驗證身份、儲存 Display 的命令集、並在 Controller 與 Display 之間安全地轉發訊息。
 - **被控制器 (Display)**：任何需要被遠端操作的客戶端。它會定義一組可執行的命令，並透過 WebSocket 連線到伺服器進行註冊，等待來自 Controller 的指令。
-- **控制器 (Controller)**：任何需要發起遠端操作的客戶端。它會向伺服器請求控制一個或多個 Display，接收其可用命令列表，並發送指令。
+- **控制器 (Controller)**：任何需要發起遠端操作的客戶端。它會向伺服器請求控制一個或多個 Display，接收其可用命令列表，並���送指令。
 
 ## 3. 核心組件詳述
 
@@ -363,7 +363,7 @@ setInterval(() => {
 - `new controly.Display(options)`: 建立一個 Display 實例。
     - `options.serverUrl` (string, required): 中繼伺服器的 WebSocket URL。
     - `options.id` (string, optional): 指定 Display 的 ID。
-    - `options.commandUrl` (string, required): `command.json` 的 URL。
+    - `options.commandUrl` (string, required): `command.json` 的 URL��
 - `.connect()`: 啟動與伺服器的連線。
 - `.disconnect()`: 關閉連線。
 - `.on(eventName, callback)`: 註冊事件監聽器。
@@ -458,6 +458,99 @@ function sendVolumeCommand(displayId, volume) {
     - `displayId` (string): 目標 Display 的 ID。
     - `command` (object): 指令物件，包含 `name` 及選填的 `args`。
 
+## 9. 訊息監控 WebSocket 端點 (Message Inspection Endpoint)
+
+為了提供更佳的系統可觀測性與除錯能力，系統將提供一個專門的 WebSocket 端點，用於即時監控所有在主要通訊渠道 (`/ws`) 上流動的訊息。任何連接到此端點的客戶端，都將會收到一份在 Controller、Display 與 Server 之間傳遞的所有訊息的副本。
+
+### 9.1. 端點位址
+
+- **WebSocket 端點**: `ws://<server_address>/ws/inspect`
+
+### 9.2. 功能與特性
+
+- **被動監聽**: 連接到此端點的客戶端為純粹的觀察者，無法發送任何訊息或干擾正常的通訊流程。
+- **即時性**: 訊息會即時轉發，延遲極低。
+- **全域視角**: 可以監控到所有客戶端之間的互動，無需單獨訂閱或連接。
+
+### 9.3. 監控訊息格式
+
+所有轉發到監控端點的訊息，都會被封裝在一個新的 JSON 結構中，以提供額外的元數據，如來源、目標和時間戳。
+
+- **結構定義**:
+
+    ```json
+    {
+    	"source": "<source_client_id>",
+    	"targets": ["<target_client_id_1>", "<target_client_id_2>", ...],
+    	"timestamp": "<RFC3339_timestamp>",
+    	"original_message": { ... }
+    }
+    ```
+
+- **欄位說明**:
+    - `source` (string, required): 原始訊息的發送者 ID。如果訊息由伺服器自身產生（例如 `notification` 或 `error`），此欄位會是 `"server"`。
+    - `targets` (string[], required): 原始訊息的接收者 ID 陣列。即使只有一個接收者，此欄位也必須是陣列。
+    - `timestamp` (string, required): 伺服器轉發此訊息時的 UTC 時間，格式為 [RFC3339](https://www.rfc-editor.org/rfc/rfc3339) (e.g., `2025-07-21T15:30:00.123Z`)。
+    - `original_message` (object, required): 從 `/ws` 端點擷取到的完整、未經修改的原始訊息 JSON 物件。
+
+### 9.4. 訊息範例
+
+1.  **Controller 發送 `command` 給單一 Display**:
+
+    ```json
+    {
+    	"source": "my-remote-controller-A",
+    	"targets": ["my-unique-display-01"],
+    	"timestamp": "2025-07-21T16:45:10.554Z",
+    	"original_message": {
+    		"type": "command",
+    		"to": "my-unique-display-01",
+    		"payload": {
+    			"name": "set_volume",
+    			"args": {
+    				"level": 95
+    			}
+    		}
+    	}
+    }
+    ```
+
+2.  **Display 廣播 `status` 給所有訂閱的 Controller**:
+
+    假設 `display-2` 被 `controller-A` 和 `controller-C` 訂閱。
+
+    ```json
+    {
+    	"source": "display-2",
+    	"targets": ["controller-A", "controller-C"],
+    	"timestamp": "2025-07-21T16:46:22.108Z",
+    	"original_message": {
+    		"type": "status",
+    		"from": "display-2",
+    		"payload": {
+    			"playback_state": "paused"
+    		}
+    	}
+    }
+    ```
+
+3.  **Server 發送 `notification` 給特定 Controller**:
+
+    ```json
+    {
+    	"source": "server",
+    	"targets": ["controller-B"],
+    	"timestamp": "2025-07-21T16:47:05.001Z",
+    	"original_message": {
+    		"type": "notification",
+    		"from": "server",
+    		"payload": {
+    			"message": "Display 'display-X' has disconnected."
+    		}
+    	}
+    }
+    ```
+
 ## 附錄：命令定義與控制項類型
 
 ### 命令定義 (`command.json`)
@@ -483,7 +576,7 @@ function sendVolumeCommand(displayId, volume) {
     - `default` (string, optional): 預設值。
     - `regex` (string, optional): 用於驗證輸入內容的正規表示式。
 
-3.  **數字輸入 (Number)**: 用於輸入���數或浮點數。
+3.  **數字輸入 (Number)**: 用於輸入整數或浮點數。
 
     - `type`: `"number"`
     - `default` (number, optional): 預設值。
