@@ -30,17 +30,8 @@ type CommandFetcher interface {
 	FetchCommands(url string) ([]byte, error)
 }
 
-// WebSocketMessenger defines the interface for sending WebSocket messages.
-type WebSocketMessenger interface {
-	SendMessage(to, from, msgType string, payload json.RawMessage) error
-	SendError(clientID string, code int, message string) error
-}
-
-// WebSocketConnectionManager defines the interface for managing WebSocket connections from the application layer.
-type WebSocketConnectionManager interface {
-	WebSocketMessenger
-	RegisterDisplayConnection(displayID string, conn any)
-	UnregisterDisplayConnection(displayID string)
-	RegisterControllerConnection(controllerID string, conn any)
-	UnregisterControllerConnection(controllerID string)
+// ClientNotifier defines the interface for sending WebSocket messages.
+type ClientNotifier interface {
+	SendMessage(to, from, msgType string, payload json.RawMessage)
+	SendError(clientID string, code int, message string)
 }

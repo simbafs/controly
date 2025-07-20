@@ -18,17 +18,19 @@ type IDGenerator interface {
 	GenerateUniqueDisplayID(checker infrastructure.DisplayExistenceChecker) (string, error)
 }
 
-// DisplayRegistrationUseCase handles the registration of a new Display.
-type DisplayRegistrationUseCase struct {
+// RegisterDisplay handles the registration of a new Display.
+type RegisterDisplay struct {
 	DisplayRepo      DisplayRepository
 	CommandFetcher   CommandFetcher
-	WebSocketService WebSocketConnectionManager
-	IDGenerator      IDGenerator // New dependency
-	ServerToken      string      // Server-wide token for authentication
+	WebSocketService interface {
+		RegisterDisplayConnection(displayID string, conn any)
+	}
+	IDGenerator IDGenerator // New dependency
+	ServerToken string      // Server-wide token for authentication
 }
 
 // Execute registers a new display and its connection.
-func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, commandURL, token string) (string, error) {
+func (uc *RegisterDisplay) Execute(conn *websocket.Conn, displayID, commandURL, token string) (string, error) {
 	// Token validation
 	if uc.ServerToken != "" {
 		if token == "" {
@@ -81,15 +83,18 @@ func (uc *DisplayRegistrationUseCase) Execute(conn *websocket.Conn, displayID, c
 	return displayID, nil
 }
 
-// DisplayDisconnectionUseCase handles the disconnection of a Display.
-type DisplayDisconnectionUseCase struct {
+// HandleDisplayDisconnection handles the disconnection of a Display.
+type HandleDisplayDisconnection struct {
 	DisplayRepo    DisplayRepository
 	ControllerRepo ControllerRepository
-	ConnManager    WebSocketConnectionManager
+	ConnManager    interface {
+		UnregisterDisplayConnection(displayID string)
+		SendMessage(to, from, msgType string, payload json.RawMessage)
+	}
 }
 
 // Execute performs all cleanup tasks when a display disconnects.
-func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
+func (uc *HandleDisplayDisconnection) Execute(displayID string) {
 	// Unregister connection first
 	uc.ConnManager.UnregisterDisplayConnection(displayID)
 
@@ -116,9 +121,7 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 	for _, controllerID := range subscribersToNotify {
 		// Notify controller that the display has disconnected
 		payload, _ := json.Marshal(domain.DisplayDisconnectedPayload{DisplayID: displayID})
-		if err := uc.ConnManager.SendMessage(controllerID, "server", "display_disconnected", payload); err != nil {
-			log.Printf("Error sending 'display_disconnected' message to controller '%s': %v", controllerID, err)
-		}
+		uc.ConnManager.SendMessage(controllerID, "server", "display_disconnected", payload)
 
 		if controller, controllerFound := uc.ControllerRepo.FindByID(controllerID); controllerFound {
 			controller.Mu.Lock()
@@ -132,15 +135,18 @@ func (uc *DisplayDisconnectionUseCase) Execute(displayID string) {
 	log.Printf("Removed display '%s' from repository.", displayID)
 }
 
-// ControllerConnectionUseCase handles a new Controller connection.
-type ControllerConnectionUseCase struct {
+// RegisterController handles a new Controller connection.
+type RegisterController struct {
 	ControllerRepo   ControllerRepository
-	WebSocketService WebSocketConnectionManager
-	IDGenerator      IDGenerator // New dependency
+	WebSocketService interface {
+		RegisterControllerConnection(controllerID string, conn any)
+		SendError(clientID string, code int, message string)
+	}
+	IDGenerator IDGenerator // New dependency
 }
 
 // Execute registers a new controller and its connection.
-func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn) (string, error) {
+func (uc *RegisterController) Execute(conn *websocket.Conn) (string, error) {
 	var controllerID string
 
 	controllerIDCounter++
@@ -161,15 +167,18 @@ func (uc *ControllerConnectionUseCase) Execute(conn *websocket.Conn) (string, er
 	return controllerID, nil
 }
 
-// ControllerDisconnectionUseCase handles the disconnection of a Controller.
-type ControllerDisconnectionUseCase struct {
+// HandleControllerDisconnection handles the disconnection of a Controller.
+type HandleControllerDisconnection struct {
 	ControllerRepo ControllerRepository
 	DisplayRepo    DisplayRepository // Add DisplayRepo dependency
-	ConnManager    WebSocketConnectionManager
+	ConnManager    interface {
+		UnregisterControllerConnection(controllerID string)
+		SendMessage(to, from, msgType string, payload json.RawMessage)
+	}
 }
 
 // Execute performs all cleanup tasks when a controller disconnects.
-func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
+func (uc *HandleControllerDisconnection) Execute(controllerID string) {
 	// Unregister connection first
 	uc.ConnManager.UnregisterControllerConnection(controllerID)
 
@@ -198,9 +207,7 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 			// Notify the display that a controller has unsubscribed
 			unsubscribedCount := len(actualDisplay.Subscribers)
 			unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
-			if err := uc.ConnManager.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload); err != nil {
-				log.Printf("Error sending 'unsubscribed' message to display '%s': %v", displayID, err)
-			}
+			uc.ConnManager.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload)
 		}
 	}
 
@@ -209,15 +216,18 @@ func (uc *ControllerDisconnectionUseCase) Execute(controllerID string) {
 	log.Printf("Removed controller '%s' from repository.", controllerID)
 }
 
-// DeleteDisplayUseCase handles the deletion of a Display.
-type DeleteDisplayUseCase struct {
+// DeleteDisplay handles the deletion of a Display.
+type DeleteDisplay struct {
 	DisplayRepo    DisplayRepository
 	ControllerRepo ControllerRepository // New dependency
-	ConnManager    WebSocketConnectionManager
+	ConnManager    interface {
+		UnregisterDisplayConnection(displayID string)
+		SendError(clientID string, code int, message string)
+	}
 }
 
 // Execute deletes a display and unregisters its connection.
-func (uc *DeleteDisplayUseCase) Execute(displayID string) error {
+func (uc *DeleteDisplay) Execute(displayID string) error {
 	displayIface, found := uc.DisplayRepo.FindByID(displayID)
 	if !found {
 		return fmt.Errorf("display '%s' not found", displayID)
@@ -244,15 +254,17 @@ func (uc *DeleteDisplayUseCase) Execute(displayID string) error {
 	return nil
 }
 
-// DeleteControllerUseCase handles the deletion of a Controller.
-type DeleteControllerUseCase struct {
+// DeleteController handles the deletion of a Controller.
+type DeleteController struct {
 	ControllerRepo ControllerRepository
-	DisplayRepo    DisplayRepository // Add DisplayRepo dependency
-	ConnManager    WebSocketConnectionManager
+	DisplayRepo    DisplayRepository
+	ConnManager    interface {
+		UnregisterControllerConnection(controllerID string)
+	}
 }
 
 // Execute deletes a controller and unregisters its connection.
-func (uc *DeleteControllerUseCase) Execute(controllerID string) error {
+func (uc *DeleteController) Execute(controllerID string) error {
 	controller, found := uc.ControllerRepo.FindByID(controllerID)
 	if !found {
 		return fmt.Errorf("controller '%s' not found", controllerID)
@@ -277,14 +289,16 @@ func (uc *DeleteControllerUseCase) Execute(controllerID string) error {
 	return nil
 }
 
-// DisplayMessageHandlingUseCase handles messages received from a Display.
-type DisplayMessageHandlingUseCase struct {
+// ProcessDisplayMessage handles messages received from a Display.
+type ProcessDisplayMessage struct {
 	DisplayRepo      DisplayRepository
-	WebSocketService WebSocketMessenger
+	WebSocketService interface {
+		BroadcastMessage(targets []string, from, msgType string, payload json.RawMessage)
+	}
 }
 
 // Execute handles an incoming message from a display.
-func (uc *DisplayMessageHandlingUseCase) Execute(displayID string, message []byte) error {
+func (uc *ProcessDisplayMessage) Execute(displayID string, message []byte) error {
 	displayIface, found := uc.DisplayRepo.FindByID(displayID)
 	if !found {
 		return fmt.Errorf("display '%s' not found for message handling", displayID)
@@ -301,14 +315,15 @@ func (uc *DisplayMessageHandlingUseCase) Execute(displayID string, message []byt
 
 	if msg.Type == "status" {
 		actualDisplay.Mu.Lock()
-		defer actualDisplay.Mu.Unlock()
-		// Forward status to all subscribing controllers
+		subscribers := make([]string, 0, len(actualDisplay.Subscribers))
 		for controllerID := range actualDisplay.Subscribers {
-			// When forwarding, `from` is the display, `to` is the controller.
-			if err := uc.WebSocketService.SendMessage(controllerID, displayID, "status", msg.Payload); err != nil {
-				log.Printf("Error forwarding status to controller '%s' for display '%s': %v", controllerID, displayID, err)
-				// Continue to next subscriber even if one fails
-			}
+			subscribers = append(subscribers, controllerID)
+		}
+		actualDisplay.Mu.Unlock()
+
+		if len(subscribers) > 0 {
+			// Forward status to all subscribing controllers in a single broadcast
+			uc.WebSocketService.BroadcastMessage(subscribers, displayID, "status", msg.Payload)
 		}
 	} else {
 		return fmt.Errorf("unknown message type from display '%s': %s", displayID, msg.Type)
@@ -316,15 +331,15 @@ func (uc *DisplayMessageHandlingUseCase) Execute(displayID string, message []byt
 	return nil
 }
 
-// ControllerMessageHandlingUseCase handles messages received from a Controller.
-type ControllerMessageHandlingUseCase struct {
+// ProcessControllerMessage handles messages received from a Controller.
+type ProcessControllerMessage struct {
 	ControllerRepo   ControllerRepository
 	DisplayRepo      DisplayRepository
-	WebSocketService WebSocketMessenger
+	WebSocketService ClientNotifier
 }
 
 // Execute handles an incoming message from a controller.
-func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message []byte) error {
+func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte) error {
 	controller, found := uc.ControllerRepo.FindByID(controllerID)
 	if !found {
 		return fmt.Errorf("controller '%s' not found for message handling", controllerID)
@@ -366,17 +381,12 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 			uc.ControllerRepo.Save(controller)         // Persist controller changes
 
 			// Send command list to controller. `from` is the display, `to` is the controller.
-			if err := uc.WebSocketService.SendMessage(controllerID, displayID, "command_list", actualDisplay.CommandList); err != nil {
-				log.Printf("Error sending command_list to controller '%s' for display '%s': %v", controllerID, displayID, err)
-				// Continue to next display even if one fails
-			}
+			uc.WebSocketService.SendMessage(controllerID, displayID, "command_list", actualDisplay.CommandList)
 
 			// Notify the display that a new controller has subscribed
 			subscribedCount := len(actualDisplay.Subscribers)
 			subscribedPayload, _ := json.Marshal(domain.SubscribedPayload{Count: subscribedCount})
-			if err := uc.WebSocketService.SendMessage(displayID, "server", "subscribed", subscribedPayload); err != nil {
-				log.Printf("Error sending 'subscribed' message to display '%s': %v", displayID, err)
-			}
+			uc.WebSocketService.SendMessage(displayID, "server", "subscribed", subscribedPayload)
 		}
 		log.Printf("Controller '%s' subscribed to displays: %v", controllerID, payload.DisplayIDs)
 
@@ -404,9 +414,7 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 				// Notify the display that a controller has unsubscribed
 				unsubscribedCount := len(actualDisplay.Subscribers)
 				unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
-				if err := uc.WebSocketService.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload); err != nil {
-					log.Printf("Error sending 'unsubscribed' message to display '%s': %v", displayID, err)
-				}
+				uc.WebSocketService.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload)
 			}
 			delete(controller.Subscriptions, displayID) // Remove display from controller's subscriptions
 			uc.ControllerRepo.Save(controller)          // Persist controller changes
@@ -430,10 +438,7 @@ func (uc *ControllerMessageHandlingUseCase) Execute(controllerID string, message
 		}
 
 		// Forward command to the target display. `from` is the controller, `to` is the display.
-		if err := uc.WebSocketService.SendMessage(msg.To, controllerID, "command", msg.Payload); err != nil {
-			log.Printf("Error forwarding command to display '%s' from controller '%s': %v", msg.To, controllerID, err)
-			return fmt.Errorf("failed to forward command: %w", err)
-		}
+		uc.WebSocketService.SendMessage(msg.To, controllerID, "command", msg.Payload)
 		log.Printf("Controller '%s' sent command to display '%s'.", controllerID, msg.To)
 
 	default:

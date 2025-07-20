@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -55,10 +54,11 @@ type GorillaWebSocketGateway struct {
 	upgrader              websocket.Upgrader
 	displayConnections    sync.Map // map[string]*client (displayID -> conn)
 	controllerConnections sync.Map // map[string]*client (controllerID -> conn)
+	inspector             *InspectorGateway
 }
 
 // NewGorillaWebSocketGateway creates a new GorillaWebSocketGateway.
-func NewGorillaWebSocketGateway() *GorillaWebSocketGateway {
+func NewGorillaWebSocketGateway(inspector *InspectorGateway) *GorillaWebSocketGateway {
 	return &GorillaWebSocketGateway{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
@@ -67,6 +67,7 @@ func NewGorillaWebSocketGateway() *GorillaWebSocketGateway {
 				return true // Allow all origins for now
 			},
 		},
+		inspector: inspector,
 	}
 }
 
@@ -131,36 +132,63 @@ func (g *GorillaWebSocketGateway) UnregisterControllerConnection(controllerID st
 	g.controllerConnections.Delete(controllerID)
 }
 
-// SendMessage sends a generic WebSocket message to a specific client.
-func (g *GorillaWebSocketGateway) SendMessage(to, from, msgType string, payload json.RawMessage) error {
-	var c *client
-
-	if to == "" {
-		return fmt.Errorf("cannot send message to empty recipient")
+// BroadcastMessage sends a generic WebSocket message to a list of clients and logs it for inspection.
+func (g *GorillaWebSocketGateway) BroadcastMessage(targets []string, from, msgType string, payload json.RawMessage) {
+	if len(targets) == 0 {
+		return
 	}
 
-	iface, ok := g.displayConnections.Load(to)
-	if !ok {
-		iface, ok = g.controllerConnections.Load(to)
-		if !ok {
-			return fmt.Errorf("connection for client ID '%s' not found", to)
-		}
-	}
-	c = iface.(*client)
-
+	// 1. Construct the OutgoingMessage
 	msg := domain.OutgoingMessage{
 		Type:    msgType,
 		From:    from,
 		Payload: payload,
 	}
 
-	c.send <- msg
-	return nil
+	// 2. Marshal it for the inspection message
+	originalMsgBytes, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshalling original message for inspection: %v", err)
+		// We can still proceed with sending the message to the target
+	} else {
+		// 3. Construct and broadcast the InspectionMessage
+		inspectionMsg := &domain.InspectionMessage{
+			Source:          from,
+			Targets:         targets,
+			Timestamp:       time.Now().UTC().Format("2006-01-02T15:04:05.999Z07:00"), // RFC3339Nano
+			OriginalMessage: originalMsgBytes,
+		}
+		g.inspector.Broadcast(inspectionMsg)
+	}
+
+	// 4. Send the message to all targets
+	for _, targetID := range targets {
+		var c *client
+		iface, ok := g.displayConnections.Load(targetID)
+		if !ok {
+			iface, ok = g.controllerConnections.Load(targetID)
+			if !ok {
+				log.Printf("Connection for client ID '%s' not found for broadcast", targetID)
+				continue
+			}
+		}
+		c = iface.(*client)
+		c.send <- msg
+	}
+}
+
+// SendMessage sends a generic WebSocket message to a specific client.
+func (g *GorillaWebSocketGateway) SendMessage(to, from, msgType string, payload json.RawMessage) {
+	if to == "" {
+		log.Printf("cannot send message to empty recipient")
+		return
+	}
+	g.BroadcastMessage([]string{to}, from, msgType, payload)
 }
 
 // SendError sends an error WebSocket message to a specific client.
-func (g *GorillaWebSocketGateway) SendError(clientID string, code int, message string) error {
+func (g *GorillaWebSocketGateway) SendError(clientID string, code int, message string) {
 	payload, _ := json.Marshal(domain.ErrorPayload{Code: code, Message: message})
 	// Errors are from the server
-	return g.SendMessage(clientID, "server", "error", payload)
+	g.BroadcastMessage([]string{clientID}, "server", "error", payload)
 }

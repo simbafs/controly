@@ -32,7 +32,15 @@ type UnsubscribedPayload struct {
 	Count int `json:"count"`
 }
 
-// DisplayDisconnectedPayload represents the payload for a "display_disconnected" message
+// DisplayDisconnectedPayload is the structure for the payload of a 'display_disconnected' message.
 type DisplayDisconnectedPayload struct {
 	DisplayID string `json:"display_id"`
+}
+
+// InspectionMessage is the format for messages sent to the /ws/inspect endpoint.
+type InspectionMessage struct {
+	Source          string          `json:"source"`
+	Targets         []string        `json:"targets"`
+	Timestamp       string          `json:"timestamp"`
+	OriginalMessage json.RawMessage `json:"original_message"`
 }

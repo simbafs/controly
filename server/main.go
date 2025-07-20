@@ -24,11 +24,12 @@ func main() {
 	displayRepo := infrastructure.NewInMemoryDisplayRepository()
 	controllerRepo := infrastructure.NewInMemoryControllerRepository()
 	commandFetcher := infrastructure.NewHTTPCommandFetcher()
-	wsGateway := infrastructure.NewGorillaWebSocketGateway()
+	inspectorGateway := infrastructure.NewInspectorGateway()
+	wsGateway := infrastructure.NewGorillaWebSocketGateway(inspectorGateway)
 	idGenerator := infrastructure.NewBase58IDGenerator()
 
 	// Initialize Use Cases
-	displayRegistrationUC := &application.DisplayRegistrationUseCase{
+	registerDisplay := &application.RegisterDisplay{
 		DisplayRepo:      displayRepo,
 		CommandFetcher:   commandFetcher,
 		WebSocketService: wsGateway,
@@ -36,41 +37,40 @@ func main() {
 		ServerToken:      cfg.Token,
 	}
 
-	displayDisconnectionUC := &application.DisplayDisconnectionUseCase{
+	handleDisplayDisconnection := &application.HandleDisplayDisconnection{
 		DisplayRepo:    displayRepo,
 		ControllerRepo: controllerRepo,
 		ConnManager:    wsGateway,
 	}
 
-	controllerConnectionUC := &application.ControllerConnectionUseCase{
+	registerController := &application.RegisterController{
 		ControllerRepo:   controllerRepo,
 		WebSocketService: wsGateway,
 		IDGenerator:      idGenerator,
 	}
 
-	controllerDisconnectionUC := &application.ControllerDisconnectionUseCase{
+	handleControllerDisconnection := &application.HandleControllerDisconnection{
 		ControllerRepo: controllerRepo,
 		DisplayRepo:    displayRepo,
 		ConnManager:    wsGateway,
 	}
 
-	displayMessageHandlingUC := &application.DisplayMessageHandlingUseCase{
+	processDisplayMessage := &application.ProcessDisplayMessage{
 		DisplayRepo:      displayRepo,
 		WebSocketService: wsGateway,
 	}
-	controllerMessageHandlingUC := &application.ControllerMessageHandlingUseCase{
+	processControllerMessage := &application.ProcessControllerMessage{
 		ControllerRepo:   controllerRepo,
 		DisplayRepo:      displayRepo,
 		WebSocketService: wsGateway,
 	}
 
-	// New delete use cases
-	deleteDisplayUC := &application.DeleteDisplayUseCase{
+	deleteDisplay := &application.DeleteDisplay{
 		DisplayRepo:    displayRepo,
 		ControllerRepo: controllerRepo,
 		ConnManager:    wsGateway,
 	}
-	deleteControllerUC := &application.DeleteControllerUseCase{
+	deleteController := &application.DeleteController{
 		ControllerRepo: controllerRepo,
 		DisplayRepo:    displayRepo,
 		ConnManager:    wsGateway,
@@ -78,12 +78,12 @@ func main() {
 
 	// Create dependencies struct for wsHandler
 	wsHandler := delivery.NewWsHandler(
-		displayRegistrationUC,
-		displayDisconnectionUC,
-		controllerConnectionUC,
-		controllerDisconnectionUC,
-		displayMessageHandlingUC,
-		controllerMessageHandlingUC,
+		registerDisplay,
+		handleDisplayDisconnection,
+		registerController,
+		handleControllerDisconnection,
+		processDisplayMessage,
+		processControllerMessage,
 		wsGateway,
 	)
 
@@ -94,8 +94,11 @@ func main() {
 	)
 
 	// Initialize Delete Handlers
-	deleteDisplayHandler := delivery.NewDeleteDisplayHandler(deleteDisplayUC)
-	deleteControllerHandler := delivery.NewDeleteControllerHandler(deleteControllerUC)
+	deleteDisplayHandler := delivery.NewDeleteDisplayHandler(deleteDisplay)
+	deleteControllerHandler := delivery.NewDeleteControllerHandler(deleteController)
+
+	// Initialize Inspector Handler
+	inspectorWsHandler := delivery.NewInspectorWsHandler(inspectorGateway)
 
 	// Initialize Frontend Handler
 	contentFs, err := fs.Sub(files, "controller/dist")
@@ -107,8 +110,9 @@ func main() {
 	// Setup router
 	router := mux.NewRouter()
 
-	// Register WebSocket route
+	// Register WebSocket routes
 	router.Handle("/ws", wsHandler)
+	router.Handle("/ws/inspect", inspectorWsHandler)
 
 	// Register REST API routes
 	router.Handle("/api/connections", connectionsHandler).Methods("GET")

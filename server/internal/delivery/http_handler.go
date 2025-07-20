@@ -95,13 +95,13 @@ func (h *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // DeleteDisplayHandler holds the dependency for the delete display API endpoint.
 type DeleteDisplayHandler struct {
-	DeleteDisplayUC *application.DeleteDisplayUseCase
+	DeleteDisplay *application.DeleteDisplay
 }
 
 // NewDeleteDisplayHandler creates a new DeleteDisplayHandler.
-func NewDeleteDisplayHandler(deleteDisplayUC *application.DeleteDisplayUseCase) *DeleteDisplayHandler {
+func NewDeleteDisplayHandler(deleteDisplay *application.DeleteDisplay) *DeleteDisplayHandler {
 	return &DeleteDisplayHandler{
-		DeleteDisplayUC: deleteDisplayUC,
+		DeleteDisplay: deleteDisplay,
 	}
 }
 
@@ -119,7 +119,7 @@ func (h *DeleteDisplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.DeleteDisplayUC.Execute(id); err != nil {
+	if err := h.DeleteDisplay.Execute(id); err != nil {
 		log.Printf("Error deleting display %s: %v", id, err)
 		http.Error(w, err.Error(), http.StatusNotFound) // Assuming error indicates not found or internal issue
 		return
@@ -130,13 +130,13 @@ func (h *DeleteDisplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 // DeleteControllerHandler holds the dependency for the delete controller API endpoint.
 type DeleteControllerHandler struct {
-	DeleteControllerUC *application.DeleteControllerUseCase
+	DeleteController *application.DeleteController
 }
 
 // NewDeleteControllerHandler creates a new DeleteControllerHandler.
-func NewDeleteControllerHandler(deleteControllerUC *application.DeleteControllerUseCase) *DeleteControllerHandler {
+func NewDeleteControllerHandler(deleteController *application.DeleteController) *DeleteControllerHandler {
 	return &DeleteControllerHandler{
-		DeleteControllerUC: deleteControllerUC,
+		DeleteController: deleteController,
 	}
 }
 
@@ -154,7 +154,7 @@ func (h *DeleteControllerHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.DeleteControllerUC.Execute(id); err != nil {
+	if err := h.DeleteController.Execute(id); err != nil {
 		log.Printf("Error deleting controller %s: %v", id, err)
 		http.Error(w, err.Error(), http.StatusNotFound) // Assuming error indicates not found or internal issue
 		return
