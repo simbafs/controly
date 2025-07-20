@@ -17,18 +17,18 @@ The key advantages of this architecture are:
 ## Architecture
 
 ```
-+-----------------+      +----------------+      +----------------+
-|                 |      |                |      |                |
-|  Control Page   |----->|  Controly Server |----->|   Display Page |
-| (Your Browser)  |      |   (Go Backend) |      | (e.g., on a TV) |
-|                 |      |                |      |                |
-+-----------------+      +----------------+      +----------------+
-        ^                        ^                       |
-        |                        |                       |
-        |                        |      +----------------v----+
-        |                        |      |                     |
-        +------------------------+      |    command.json     |
-         (Generated based on)           | (Defines controls)  |
++-----------------+      +-------------------+      +-----------------+
+|                 |      |                   |      |                 |
+|  Control Page   |----->|  Controly Server  |----->|   Display Page  |
+| (Your Browser)  |      |   (Go Backend)    |      | (e.g., on a TV) |
+|                 |      |                   |      |                 |
++-----------------+      +-------------------+      +-----------------+
+        |                                                |
+        |                                                v
+        |                               +---------------------+
+        |                               |                     |
+        +------------------------------>|    command.json     |
+             (Generated based on)       | (Defines controls)  |
                                         |                     |
                                         +---------------------+
 ```
