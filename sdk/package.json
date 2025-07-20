@@ -1,6 +1,6 @@
 {
   "name": "controly",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SDK for the Controly real-time communication system.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
