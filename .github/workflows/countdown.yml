@@ -1,4 +1,4 @@
-name: Deploy Images to GHCR
+name: Build and deploy example
 
 on:
     push:
@@ -10,7 +10,6 @@ env:
 permissions:
   contents: read
   pages: write
-  id-token: write
   
 jobs:
     build-and-push:
