@@ -4,8 +4,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode'
 
 const $ = document.querySelector.bind(document)
 
-const SERVER_URL = location.origin.replace('http', 'ws') + '/ws'
-// const SERVER_URL = 'ws://localhost:8080/ws'
+const SERVER_URL = import.meta.env.PROD ? location.origin.replace('http', 'ws') + '/ws' : 'ws://localhost:8080/ws'
 
 const controller = new Controller({ serverUrl: SERVER_URL })
 let html5QrcodeScanner: Html5QrcodeScanner | null = null

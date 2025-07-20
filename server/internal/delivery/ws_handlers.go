@@ -13,13 +13,13 @@ import (
 )
 
 type WsHandler struct {
-	registerDisplay             *application.RegisterDisplay
-	handleDisplayDisconnection  *application.HandleDisplayDisconnection
-	registerController          *application.RegisterController
+	registerDisplay               *application.RegisterDisplay
+	handleDisplayDisconnection    *application.HandleDisplayDisconnection
+	registerController            *application.RegisterController
 	handleControllerDisconnection *application.HandleControllerDisconnection
-	processDisplayMessage       *application.ProcessDisplayMessage
-	processControllerMessage    *application.ProcessControllerMessage
-	wsGateway                   *infrastructure.GorillaWebSocketGateway
+	processDisplayMessage         *application.ProcessDisplayMessage
+	processControllerMessage      *application.ProcessControllerMessage
+	wsGateway                     *infrastructure.GorillaWebSocketGateway
 }
 
 func NewWsHandler(
@@ -32,13 +32,13 @@ func NewWsHandler(
 	wsGateway *infrastructure.GorillaWebSocketGateway,
 ) *WsHandler {
 	return &WsHandler{
-		registerDisplay:             registerDisplay,
-		handleDisplayDisconnection:  handleDisplayDisconnection,
-		registerController:          registerController,
+		registerDisplay:               registerDisplay,
+		handleDisplayDisconnection:    handleDisplayDisconnection,
+		registerController:            registerController,
 		handleControllerDisconnection: handleControllerDisconnection,
-		processDisplayMessage:       processDisplayMessage,
-		processControllerMessage:    processControllerMessage,
-		wsGateway:                   wsGateway,
+		processDisplayMessage:         processDisplayMessage,
+		processControllerMessage:      processControllerMessage,
+		wsGateway:                     wsGateway,
 	}
 }
 
@@ -152,6 +152,7 @@ func NewInspectorWsHandler(inspectorGateway *infrastructure.InspectorGateway) *I
 // ServeHTTP upgrades the connection and registers it with the InspectorGateway.
 // It then blocks, waiting for the connection to close.
 func (h *InspectorWsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println("hi")
 	conn, err := h.inspectorGateway.Upgrade(w, r)
 	if err != nil {
 		log.Printf("Failed to upgrade inspector connection: %v", err)

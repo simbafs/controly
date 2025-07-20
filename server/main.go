@@ -110,16 +110,16 @@ func main() {
 	// Setup router
 	router := mux.NewRouter()
 
-	// Register WebSocket routes
-	router.Handle("/ws", wsHandler)
-	router.Handle("/ws/inspect", inspectorWsHandler)
+	// Register WebSocket routes using a subrouter for clarity and to avoid conflicts
+	router.Handle("/ws/inspector", inspectorWsHandler) // Matches /ws/inspector
+	router.Handle("/ws", wsHandler)                    // Matches /ws
 
 	// Register REST API routes
 	router.Handle("/api/connections", connectionsHandler).Methods("GET")
 	router.Handle("/api/displays/{id}", deleteDisplayHandler).Methods("DELETE")
 	router.Handle("/api/controllers/{id}", deleteControllerHandler).Methods("DELETE")
 
-	// Serve embedded frontend files
+	// Serve embedded frontend files.
 	router.PathPrefix("/").Handler(frontendHandler)
 
 	log.Printf("Relay Server started on %s", cfg.Addr)
