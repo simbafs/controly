@@ -71,8 +71,8 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 		this.fullUrl = url.toString()
 
 		this.reconnect = options.reconnect ?? true
-		this.maxRetries = options.maxRetries ?? 10
-		this.reconnectDelay = options.reconnectDelay ?? 2000
+		this.maxRetries = options.maxRetries ?? 5
+		this.reconnectDelay = options.reconnectDelay ?? 10*1000
 	}
 
 	/**

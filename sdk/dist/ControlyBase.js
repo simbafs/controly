@@ -114,7 +114,7 @@ export class ControlyBase {
         this.fullUrl = url.toString();
         this.reconnect = options.reconnect ?? true;
         this.maxRetries = options.maxRetries ?? 5;
-        this.reconnectDelay = options.reconnectDelay ?? 2000;
+        this.reconnectDelay = options.reconnectDelay ?? 10 * 1000;
     }
     /**
      * Registers an event listener for a specific event.
