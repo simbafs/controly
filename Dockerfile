@@ -1,8 +1,17 @@
 # Stage 1: Build Controller Frontend
-FROM node:23-alpine AS controller-builder
-WORKDIR /app
+FROM node:24-alpine AS controller-builder
+
+RUN npm install pnpm@10 -g
+
+WORKDIR /app/sdk
+COPY sdk/package.json sdk/pnpm-lock.yaml* ./
+RUN pnpm install
+COPY sdk/ ./
+RUN pnpm run build
+
+WORKDIR /app/server/controller
 COPY server/controller/package.json server/controller/pnpm-lock.yaml* ./
-RUN npm install -g pnpm@10 && pnpm install
+RUN pnpm install
 COPY server/controller/ ./
 RUN pnpm build
 
@@ -16,7 +25,7 @@ RUN go mod download
 # Copy the entire server source
 COPY server/ ./
 # Copy built frontend assets from previous stages
-COPY --from=controller-builder /app/dist ./controller/dist
+COPY --from=controller-builder /app/server/controller/dist ./controller/dist
 # Build the Go application, embedding the frontend assets
 RUN go build -o /controly .
 
