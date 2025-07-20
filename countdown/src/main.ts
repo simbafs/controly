@@ -3,17 +3,11 @@ import { Display } from 'controly-sdk'
 import QRcode from 'qrcode'
 import type { ErrorPayload } from 'controly-sdk/dist/types'
 
+const SERVER_URL = import.meta.env.PROD ? 'wss://controly.1li.tw/ws' : 'ws://localhost:8080/ws'
+
 const $ = document.querySelector.bind(document)
 
 function initializeDisplay(serverUrl: string, { token, id }: { token?: string; id?: string } = {}) {
-	$<HTMLDivElement>('#app')!.innerHTML = `
-      <div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
-        <!-- QR Code will be inserted here -->
-      </div>
-      <div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
-    `
-
-	console.log({ serverUrl, id, token })
 	const display = new Display({
 		serverUrl: serverUrl,
 		commandUrl: `${window.location}/command.json`,
@@ -21,10 +15,14 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 		id,
 	})
 
-	console.log('hi')
-
 	display.on('open', id => {
-		const $qrcode = $('#qrcode') as HTMLDivElement
+		$<HTMLDivElement>('#app')!.innerHTML = `
+      	<div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
+        	<!-- QR Code will be inserted here -->
+      	</div>
+      	<div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
+    	`
+		const $qrcode = $<HTMLDivElement>('#qrcode')!
 		console.log(id)
 		if (!id) {
 			console.error('Display ID is not available.')
@@ -119,8 +117,7 @@ function showErrorScreen(message: string) {
       <div class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
         <h2 class="m-0 text-3xl font-bold text-red-600">An Error Occurred</h2>
         <p class="text-gray-600 text-lg">${message}</p>
-        <button id="back-to-connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">
-          Back to Connection Page
+        <button id="back-to-connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700" to Connection Page
         </button>
       </div>
     </div>
@@ -138,7 +135,7 @@ function main() {
     <div class="w-full h-full flex flex-col justify-center items-center text-center">
       <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
         <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
-        <input type="text" id="server-url-input" placeholder="ws:/ws" value="wss://controly.1li.tw/ws" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+        <input type="text" id="server-url-input" placeholder="ws:/ws" value="${SERVER_URL}" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
         <input type="password" id="token-input" placeholder="Enter token (optional)" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
         <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
       </div>

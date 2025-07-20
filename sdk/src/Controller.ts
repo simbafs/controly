@@ -11,17 +11,8 @@ import {
 	CommandListPayload,
 	NotificationPayload,
 	DisplayDisconnectedPayload,
+	ControlyOptions,
 } from './types'
-
-/**
- * Represents the options for creating a Controller instance.
- */
-export interface ControllerOptions {
-	/** The WebSocket URL of the relay server. */
-	serverUrl: string
-	/** An optional, self-specified ID for this Controller. */
-	id?: string
-}
 
 /**
  * The Controller client for Controly.
@@ -69,8 +60,8 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 	 * Creates an instance of a Controller client.
 	 * @param options The configuration options for the Controller.
 	 */
-	constructor(options: ControllerOptions) {
-		super(options.serverUrl, {
+	constructor(options: ControlyOptions) {
+		super(options, {
 			type: 'controller',
 			id: options.id || '',
 		})

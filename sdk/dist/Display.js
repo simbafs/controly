@@ -35,10 +35,10 @@ export class Display extends ControlyBase {
      * @param options The configuration options for the Display.
      */
     constructor(options) {
-        super(options.serverUrl, {
+        super(options, {
             type: 'display',
             id: options.id || '',
-            command_url: options.commandUrl,
+            command_url: options.commandUrl || '',
             token: options.token || '',
         });
         this.commandHandlers = new Map();

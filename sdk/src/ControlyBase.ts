@@ -2,7 +2,7 @@
  * @file Implements the base client with common WebSocket logic for Controly.
  */
 
-import { IncomingMessage, OutgoingMessage, MessageType, SetIdPayload, ErrorPayload } from './types'
+import { IncomingMessage, OutgoingMessage, MessageType, SetIdPayload, ErrorPayload, ControlyOptions } from './types'
 
 /**
  * An internal, simple event emitter.
@@ -45,6 +45,12 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	protected emitter: EventEmitter<EventMap> = new EventEmitter<EventMap>()
 	protected clientId: string | null = null
 
+	private readonly reconnect: boolean
+	private readonly maxRetries: number
+	private readonly reconnectDelay: number
+	private reconnectAttempts = 0
+	private explicitDisconnect = false
+
 	/**
 	 * The full WebSocket server URL.
 	 */
@@ -52,17 +58,21 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 
 	/**
 	 * Creates an instance of ControlyBase.
-	 * @param serverUrl The WebSocket URL of the relay server (e.g., 'ws://localhost:8080/ws').
+	 * @param options The connection options.
 	 * @param params URL query parameters to be added to the server URL.
 	 */
-	constructor(serverUrl: string, params: Record<string, string>) {
-		const url = new URL(serverUrl)
+	constructor(options: ControlyOptions, params: Record<string, string>) {
+		const url = new URL(options.serverUrl)
 		Object.entries(params).forEach(([key, value]) => {
 			if (value) {
 				url.searchParams.set(key, value)
 			}
 		})
 		this.fullUrl = url.toString()
+
+		this.reconnect = options.reconnect ?? true
+		this.maxRetries = options.maxRetries ?? 10
+		this.reconnectDelay = options.reconnectDelay ?? 2000
 	}
 
 	/**
@@ -80,9 +90,14 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	 */
 	public connect(): void {
 		if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-			throw new Error('Connection is already active or connecting.')
+			console.warn('Connection is already active or connecting.')
+			return
 		}
 
+		this.cleanup()
+
+		this.explicitDisconnect = false
+		// Do not reset reconnectAttempts here, allow handleClose to manage it.
 		this.ws = new WebSocket(this.fullUrl)
 		this.ws.addEventListener('open', this.handleOpen)
 		this.ws.addEventListener('message', this.handleMessage)
@@ -94,6 +109,15 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	 * Disconnects from the Controly server.
 	 */
 	public disconnect(): void {
+		this.explicitDisconnect = true
+		this.cleanup()
+	}
+
+	/**
+	 * Cleans up the WebSocket connection and its event listeners.
+	 * @private
+	 */
+	private cleanup(): void {
 		if (this.ws) {
 			this.ws.removeEventListener('open', this.handleOpen)
 			this.ws.removeEventListener('message', this.handleMessage)
@@ -119,7 +143,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	}
 
 	private handleOpen = (): void => {
-		// The 'open' event is fired after the server assigns an ID via 'set_id' message.
+		this.reconnectAttempts = 0
 		console.log('WebSocket connection established. Waiting for client ID.')
 	}
 
@@ -159,14 +183,37 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	private handleError = (event: Event): void => {
 		console.error('WebSocket error:', event)
 		const errorPayload: ErrorPayload = {
-			code: 5000,
+			code: 'WEBSOCKET_ERROR',
 			message: 'A WebSocket communication error occurred.',
 		}
 		this.emitter.emit('error', errorPayload, undefined)
 	}
 
-	private handleClose = (): void => {
-		this.emitter.emit('close' as any)
+	private handleClose = (event: CloseEvent): void => {
+		this.emitter.emit('close' as any, event)
+
+		if (this.explicitDisconnect || !this.reconnect) {
+			return
+		}
+
+		if (this.reconnectAttempts < this.maxRetries) {
+			this.reconnectAttempts++
+			console.log(
+				`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${
+					this.reconnectAttempts
+				}/${this.maxRetries})`,
+			)
+			this.cleanup()
+			setTimeout(() => {
+				this.connect()
+			}, this.reconnectDelay)
+		} else {
+			console.error(`Failed to reconnect after ${this.maxRetries} attempts.`)
+			this.emitter.emit('error', {
+				code: 'RECONNECT_FAILED',
+				message: `Failed to reconnect after ${this.maxRetries} attempts.`,
+			} as ErrorPayload)
+		}
 	}
 
 	/**

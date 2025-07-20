@@ -64,7 +64,7 @@ export interface NotificationPayload {
  * Payload for `error` messages sent by the server.
  */
 export interface ErrorPayload {
-    code: number;
+    code: number | string;
     message: string;
 }
 /**
@@ -138,7 +138,7 @@ export type OpenHandler = (id: string) => void;
 /**
  * Handler for the 'close' event.
  */
-export type CloseHandler = () => void;
+export type CloseHandler = (event: CloseEvent) => void;
 /**
  * Handler for 'error' events.
  */
@@ -195,5 +195,43 @@ export interface DisplayEventMap {
     subscribed: SubscribedHandler;
     unsubscribed: UnsubscribedHandler;
     [key: string]: (...args: any[]) => void;
+}
+/**
+ * Options for initializing a Controly client.
+ */
+export interface ControlyOptions {
+    /**
+     * The WebSocket URL of the relay server.
+     * @example 'wss://controly.1li.tw/ws'
+     */
+    serverUrl: string;
+    /**
+     * An optional authentication token.
+     */
+    token?: string;
+    /**
+     * An optional client ID to resume a previous session.
+     */
+    id?: string;
+    /**
+     * For Displays, the URL to the `command.json` file.
+     * @example 'http://localhost:3000/command.json'
+     */
+    commandUrl?: string;
+    /**
+     * Whether to automatically reconnect on unexpected disconnection.
+     * @default true
+     */
+    reconnect?: boolean;
+    /**
+     * Maximum number of reconnection attempts.
+     * @default 5
+     */
+    maxRetries?: number;
+    /**
+     * Delay between reconnection attempts in milliseconds.
+     * @default 2000
+     */
+    reconnectDelay?: number;
 }
 export {};

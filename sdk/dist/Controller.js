@@ -49,7 +49,7 @@ export class Controller extends ControlyBase {
      * @param options The configuration options for the Controller.
      */
     constructor(options) {
-        super(options.serverUrl, {
+        super(options, {
             type: 'controller',
             id: options.id || '',
         });

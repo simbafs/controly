@@ -3,21 +3,16 @@
  */
 
 import { ControlyBase } from './ControlyBase'
-import { OutgoingMessage, StatusPayload, CommandHandler, CommandPayload, DisplayEventMap, SubscribedPayload, UnsubscribedPayload } from './types'
-
-/**
- * Represents the options for creating a Display instance.
- */
-export interface DisplayOptions {
-	/** The WebSocket URL of the relay server. */
-	serverUrl: string
-	/** The URL of the `command.json` file for this Display. */
-	commandUrl: string
-	/** An optional, self-specified ID for this Display. */
-	id?: string
-	/** An optional token for authentication. */
-	token?: string
-}
+import {
+	OutgoingMessage,
+	StatusPayload,
+	CommandHandler,
+	CommandPayload,
+	DisplayEventMap,
+	SubscribedPayload,
+	UnsubscribedPayload,
+	ControlyOptions,
+} from './types'
 
 /**
  * The Display client for Controly.
@@ -54,11 +49,11 @@ export class Display extends ControlyBase<DisplayEventMap> {
 	 * Creates an instance of a Display client.
 	 * @param options The configuration options for the Display.
 	 */
-	constructor(options: DisplayOptions) {
-		super(options.serverUrl, {
+	constructor(options: ControlyOptions) {
+		super(options, {
 			type: 'display',
 			id: options.id || '',
-			command_url: options.commandUrl,
+			command_url: options.commandUrl || '',
 			token: options.token || '',
 		})
 	}

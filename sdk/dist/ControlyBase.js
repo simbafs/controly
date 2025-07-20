@@ -39,15 +39,17 @@ class EventEmitter {
 export class ControlyBase {
     /**
      * Creates an instance of ControlyBase.
-     * @param serverUrl The WebSocket URL of the relay server (e.g., 'ws://localhost:8080/ws').
+     * @param options The connection options.
      * @param params URL query parameters to be added to the server URL.
      */
-    constructor(serverUrl, params) {
+    constructor(options, params) {
         this.ws = null;
         this.emitter = new EventEmitter();
         this.clientId = null;
+        this.reconnectAttempts = 0;
+        this.explicitDisconnect = false;
         this.handleOpen = () => {
-            // The 'open' event is fired after the server assigns an ID via 'set_id' message.
+            this.reconnectAttempts = 0;
             console.log('WebSocket connection established. Waiting for client ID.');
         };
         this.handleMessage = (event) => {
@@ -77,21 +79,42 @@ export class ControlyBase {
         this.handleError = (event) => {
             console.error('WebSocket error:', event);
             const errorPayload = {
-                code: 5000,
+                code: 'WEBSOCKET_ERROR',
                 message: 'A WebSocket communication error occurred.',
             };
             this.emitter.emit('error', errorPayload, undefined);
         };
-        this.handleClose = () => {
-            this.emitter.emit('close');
+        this.handleClose = (event) => {
+            this.emitter.emit('close', event);
+            if (this.explicitDisconnect || !this.reconnect) {
+                return;
+            }
+            if (this.reconnectAttempts < this.maxRetries) {
+                this.reconnectAttempts++;
+                console.log(`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${this.reconnectAttempts}/${this.maxRetries})`);
+                this.cleanup();
+                setTimeout(() => {
+                    this.connect();
+                }, this.reconnectDelay);
+            }
+            else {
+                console.error(`Failed to reconnect after ${this.maxRetries} attempts.`);
+                this.emitter.emit('error', {
+                    code: 'RECONNECT_FAILED',
+                    message: `Failed to reconnect after ${this.maxRetries} attempts.`,
+                });
+            }
         };
-        const url = new URL(serverUrl);
+        const url = new URL(options.serverUrl);
         Object.entries(params).forEach(([key, value]) => {
             if (value) {
                 url.searchParams.set(key, value);
             }
         });
         this.fullUrl = url.toString();
+        this.reconnect = options.reconnect ?? true;
+        this.maxRetries = options.maxRetries ?? 5;
+        this.reconnectDelay = options.reconnectDelay ?? 2000;
     }
     /**
      * Registers an event listener for a specific event.
@@ -107,8 +130,12 @@ export class ControlyBase {
      */
     connect() {
         if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-            throw new Error('Connection is already active or connecting.');
+            console.warn('Connection is already active or connecting.');
+            return;
         }
+        this.cleanup();
+        this.explicitDisconnect = false;
+        // Do not reset reconnectAttempts here, allow handleClose to manage it.
         this.ws = new WebSocket(this.fullUrl);
         this.ws.addEventListener('open', this.handleOpen);
         this.ws.addEventListener('message', this.handleMessage);
@@ -119,6 +146,14 @@ export class ControlyBase {
      * Disconnects from the Controly server.
      */
     disconnect() {
+        this.explicitDisconnect = true;
+        this.cleanup();
+    }
+    /**
+     * Cleans up the WebSocket connection and its event listeners.
+     * @private
+     */
+    cleanup() {
         if (this.ws) {
             this.ws.removeEventListener('open', this.handleOpen);
             this.ws.removeEventListener('message', this.handleMessage);

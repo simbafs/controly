@@ -2,16 +2,7 @@
  * @file Implements the Controller client for the Controly SDK.
  */
 import { ControlyBase } from './ControlyBase';
-import { OutgoingMessage, CommandPayload, ControllerEventMap } from './types';
-/**
- * Represents the options for creating a Controller instance.
- */
-export interface ControllerOptions {
-    /** The WebSocket URL of the relay server. */
-    serverUrl: string;
-    /** An optional, self-specified ID for this Controller. */
-    id?: string;
-}
+import { OutgoingMessage, CommandPayload, ControllerEventMap, ControlyOptions } from './types';
 /**
  * The Controller client for Controly.
  * This class is used for clients that need to control one or more Displays.
@@ -58,7 +49,7 @@ export declare class Controller extends ControlyBase<ControllerEventMap> {
      * Creates an instance of a Controller client.
      * @param options The configuration options for the Controller.
      */
-    constructor(options: ControllerOptions);
+    constructor(options: ControlyOptions);
     /**
      * Subscribes to one or more Displays to receive their command lists and status updates.
      * @param displayIds An array of Display IDs to subscribe to.

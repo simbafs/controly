@@ -1,7 +1,7 @@
 /**
  * @file Implements the base client with common WebSocket logic for Controly.
  */
-import { IncomingMessage, OutgoingMessage, MessageType } from './types';
+import { IncomingMessage, OutgoingMessage, MessageType, ControlyOptions } from './types';
 /**
  * An internal, simple event emitter.
  * @template T - A map of event names to their handler types.
@@ -29,16 +29,21 @@ export declare abstract class ControlyBase<EventMap extends Record<string, (...a
     protected ws: WebSocket | null;
     protected emitter: EventEmitter<EventMap>;
     protected clientId: string | null;
+    private readonly reconnect;
+    private readonly maxRetries;
+    private readonly reconnectDelay;
+    private reconnectAttempts;
+    private explicitDisconnect;
     /**
      * The full WebSocket server URL.
      */
     readonly fullUrl: string;
     /**
      * Creates an instance of ControlyBase.
-     * @param serverUrl The WebSocket URL of the relay server (e.g., 'ws://localhost:8080/ws').
+     * @param options The connection options.
      * @param params URL query parameters to be added to the server URL.
      */
-    constructor(serverUrl: string, params: Record<string, string>);
+    constructor(options: ControlyOptions, params: Record<string, string>);
     /**
      * Registers an event listener for a specific event.
      * @param eventName The name of the event to listen for.
@@ -54,6 +59,11 @@ export declare abstract class ControlyBase<EventMap extends Record<string, (...a
      * Disconnects from the Controly server.
      */
     disconnect(): void;
+    /**
+     * Cleans up the WebSocket connection and its event listeners.
+     * @private
+     */
+    private cleanup;
     /**
      * Sends a message to the server.
      * @param message The message object to send.
