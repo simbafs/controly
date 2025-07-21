@@ -6,10 +6,10 @@ on:
             - 'v*.*.*'
 
 env:
-  PACKAGE_NAME: controly
-  
+    PACKAGE_NAME: controly
+
 jobs:
-    build-and-push:
+    build-docker-image:
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -40,3 +40,34 @@ jobs:
               run: |
                   docker push ghcr.io/simbafs/$PACKAGE_NAME:${{ steps.vars.outputs.tag }}
                   docker push ghcr.io/simbafs/$PACKAGE_NAME:latest
+
+    build-sdk:
+        runs-on: ubuntu-latest
+        steps:
+            - name: 'Checkout GitHub Action'
+              uses: actions/checkout@main
+
+            - name: Set env
+              id: vars
+              run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
+
+            - name: echo
+              run: echo ${{ steps.vars.outputs.tag }}
+
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4.1.0
+              with:
+                  version: 10
+
+            - name: Install dependency
+              working-directory: sdk
+              run: pnpm install
+
+            - name: Build
+              working-directory: sdk``
+              run: pnpm run build
+
+            - name: Publish
+              uses: JS-DevTools/npm-publish@v3
+              with:
+                  token: ${{ secrets.NPM_TOKEN }}
