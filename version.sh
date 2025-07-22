@@ -13,8 +13,8 @@ if git tag | grep -q "$version"; then
   exit 1
 fi
 
-git tag "$version"
 cd sdk && npm version "$version"
 
 git add .
 git commit -m "Release version $version"
+git tag "$version"
