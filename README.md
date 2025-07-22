@@ -1,5 +1,7 @@
 # Controly
 
+[中文](/README-tw.md)
+
 A framework for remotely controlling a web page from another device via a dynamically generated control panel.
 
 ## Core Concepts
