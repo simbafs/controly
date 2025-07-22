@@ -17,11 +17,11 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 
 	display.on('open', id => {
 		$<HTMLDivElement>('#app')!.innerHTML = `
-      	<div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
-        	<!-- QR Code will be inserted here -->
-      	</div>
-      	<div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
-    	`
+				<div id="qrcode" class="flex flex-col justify-center items-center bg-white p-10 rounded-2xl shadow-xl">
+					<!-- QR Code will be inserted here -->
+				</div>
+				<div id="time" class="text-[45vw] font-bold font-mono text-gray-900 hidden">60</div>
+			`
 		const $qrcode = $<HTMLDivElement>('#qrcode')!
 		console.log(id)
 		if (!id) {
@@ -32,9 +32,9 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 
 		QRcode.toDataURL(id, { width: 600 }).then(img => {
 			$qrcode.innerHTML = `
-      <img src="${img}" alt="Display QR Code" class="w-[300px] h-[300px]" />
-      <p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
-    `
+			<img src="${img}" alt="Display QR Code" class="w-[300px] h-[300px]" />
+			<p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
+		`
 		})
 	})
 
@@ -113,15 +113,15 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 function showErrorScreen(message: string) {
 	const app = document.querySelector<HTMLDivElement>('#app')!
 	app.innerHTML = `
-    <div class="w-full h-full flex flex-col justify-center items-center text-center">
-      <div class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
-        <h2 class="m-0 text-3xl font-bold text-red-600">An Error Occurred</h2>
-        <p class="text-gray-600 text-lg">${message}</p>
-        <button id="back-to-connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700" to Connection Page
-        </button>
-      </div>
-    </div>
-  `
+		<div class="w-full h-full flex flex-col justify-center items-center text-center">
+			<div class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
+				<h2 class="m-0 text-3xl font-bold text-red-600">An Error Occurred</h2>
+				<p class="text-gray-600 text-lg">${message}</p>
+				<button id="back-to-connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700" to Connection Page
+				</button>
+			</div>
+		</div>
+	`
 
 	document.querySelector<HTMLButtonElement>('#back-to-connect-btn')!.addEventListener('click', () => {
 		main()
@@ -132,15 +132,17 @@ function main() {
 	const app = document.querySelector<HTMLDivElement>('#app')!
 
 	app.innerHTML = `
-    <div class="w-full h-full flex flex-col justify-center items-center text-center">
-      <div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
-        <h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
-        <input type="text" id="server-url-input" placeholder="ws:/ws" value="${SERVER_URL}" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
-        <input type="password" id="token-input" placeholder="Enter token (optional)" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
-        <button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
-      </div>
-    </div>
-  `
+		<div class="w-full h-full flex flex-col justify-center items-center text-center">
+			<h1 class="text-4xl">Counter</h1>
+	 		<h2 class="text-2xl">This is an example display of <a class="underline" href="https://github.com/simbafs/controly">Controly</a></h2>
+			<div id="server-url-container" class="bg-white p-10 rounded-2xl shadow-xl flex flex-col gap-6 items-center w-full max-w-md">
+				<h2 class="m-0 mb-2 text-gray-900">Enter Server URL</h2>
+				<input type="text" id="server-url-input" placeholder="ws:/ws" value="${SERVER_URL}" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+				<input type="password" id="token-input" placeholder="Enter token (optional)" class="w-full p-3 text-base border border-gray-300 rounded-lg text-center box-border" />
+				<button id="connect-btn" class="w-full p-3 text-lg font-semibold rounded-lg border-none bg-blue-600 text-white cursor-pointer transition-colors duration-200 hover:bg-blue-700">Connect</button>
+			</div>
+		</div>
+	`
 
 	const connectBtn = $<HTMLButtonElement>('#connect-btn')!
 	connectBtn.addEventListener('click', () => {

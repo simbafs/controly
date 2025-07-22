@@ -11,10 +11,10 @@ let html5QrcodeScanner: Html5QrcodeScanner | null = null
 
 // --- Tailwind CSS classes ---
 const baseInputClass =
-	'block w-full rounded-md border-0 px-2 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6'
+	'block rounded-md border-0 px-2 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 grow-3'
 const baseButtonClass =
-	'rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-const baseLabelClass = 'block text-sm font-medium leading-6 text-gray-900'
+	'rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 grow'
+const baseLabelClass = 'block text-sm font-medium leading-6 text-gray-900 grow'
 // ---
 
 function bindController(displayID: string, commandList: Command[], parent: HTMLDivElement) {
@@ -46,10 +46,22 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 	const controlContainer = document.createElement('div')
 	controlContainer.className = 'space-y-6 flex flex-col gap-1'
 
+	function label(text: string, htmlFor: string): HTMLLabelElement {
+		const label = document.createElement('label')
+		label.className = baseLabelClass
+		label.textContent = text
+		label.htmlFor = htmlFor
+		return label
+	}
+
 	for (const cmd of commandList) {
+		const id = `${displayID}-${cmd.name}`
+		const fieldContainer = document.createElement('div')
+		fieldContainer.className = 'flex items-center gap-3'
 		switch (cmd.type) {
 			case 'text':
 				const input = document.createElement('input')
+				input.id = id
 				input.type = 'text'
 				input.name = cmd.name
 				input.className = `${baseInputClass} mt-2`
@@ -59,7 +71,8 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 						args: { value: input.value },
 					})
 				})
-				controlContainer.appendChild(input)
+				fieldContainer.appendChild(label(cmd.label, id))
+				fieldContainer.appendChild(input)
 				break
 			case 'number':
 				const numberInput = document.createElement('input')
@@ -76,7 +89,8 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				if (cmd.min !== undefined) numberInput.min = cmd.min.toString()
 				if (cmd.max !== undefined) numberInput.max = cmd.max.toString()
 				if (cmd.step !== undefined) numberInput.step = cmd.step.toString()
-				controlContainer.appendChild(numberInput)
+				fieldContainer.appendChild(label(cmd.label, id))
+				fieldContainer.appendChild(numberInput)
 				break
 			case 'button':
 				const btn = document.createElement('button')
@@ -86,7 +100,7 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				btn.addEventListener('click', () => {
 					controller.sendCommand(displayID, { name: cmd.name })
 				})
-				controlContainer.appendChild(btn)
+				fieldContainer.appendChild(btn)
 				break
 			case 'select':
 				const select = document.createElement('select')
@@ -105,13 +119,9 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 					})
 				})
 				select.value = cmd.default?.toString() || ''
-				controlContainer.appendChild(select)
+				fieldContainer.appendChild(select)
 				break
 			case 'checkbox':
-				const checkboxWrapper = document.createElement('div')
-				checkboxWrapper.className = 'flex items-center gap-x-3'
-				const label = document.createElement('label')
-				label.className = baseLabelClass
 				const checkbox = document.createElement('input')
 				checkbox.type = 'checkbox'
 				checkbox.name = cmd.name
@@ -124,15 +134,15 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 					})
 				})
 				label.htmlFor = cmd.name
-				checkbox.id = cmd.name
-				checkboxWrapper.appendChild(checkbox)
-				checkboxWrapper.appendChild(label)
-				controlContainer.appendChild(checkboxWrapper)
+				checkbox.id = id
+				fieldContainer.appendChild(checkbox)
+				fieldContainer.appendChild(label(cmd.label, id))
 				break
 			default:
 				console.warn(`Unknown command:`, cmd)
 				continue // Skip unknown commands
 		}
+		controlContainer.appendChild(fieldContainer)
 	}
 	container.appendChild(controlContainer)
 
