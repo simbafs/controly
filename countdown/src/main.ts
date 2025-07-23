@@ -34,6 +34,7 @@ function initializeDisplay(serverUrl: string, { token, id }: { token?: string; i
 			$qrcode.innerHTML = `
 			<img src="${img}" alt="Display QR Code" class="w-[300px] h-[300px]" />
 			<p class="text-gray-600 text-2xl font-semibold mt-6 tracking-wider font-mono">${id}</p>
+			<p class="text-gray-500 text-lg mt-4">Open <a href="https://controly.1li.tw" target="_blank" class="text-blue-600 underline">controly.1li.tw</a> to scan or enter ID.</p>
 		`
 		})
 	})
