@@ -200,6 +200,31 @@ function handleAddDisplay(id?: string) {
 	$input.value = ''
 }
 
+function updateWaitingList(list: string[]) {
+	const container = $<HTMLDivElement>('#waiting-list')!
+	container.innerHTML = '' // Clear previous list
+
+	if (list.length === 0) {
+		container.style.display = 'none'
+		return
+	}
+
+	container.style.display = 'flex'
+
+	const title = document.createElement('span')
+	title.className = 'text-sm font-medium text-gray-500 mr-2'
+	title.textContent = 'Waiting for:'
+	container.appendChild(title)
+
+	list.forEach(id => {
+		const badge = document.createElement('span')
+		badge.className =
+			'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800'
+		badge.textContent = id
+		container.appendChild(badge)
+	})
+}
+
 controller.on('open', () => {
 	console.log('Controller connected')
 	$<HTMLDivElement>('#connecting')!.style.display = 'none'
@@ -260,11 +285,16 @@ controller.on('display_disconnected', displayId => {
 	}
 })
 
+controller.on('waiting', waitingList => {
+	updateWaitingList(waitingList)
+})
+
 controller.connect()
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <h1 id="connecting" class="text-2xl font-bold text-gray-500">Connecting...</h1>
   <div id="controller" class="hidden w-full max-w-md flex-col items-center gap-6">
+    <div id="waiting-list" class="hidden w-full flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3"></div>
     <div class="w-full">
       <button id="open-scanner" type="button" class="${baseButtonClass} w-full justify-center">Scan QR Code</button>
       

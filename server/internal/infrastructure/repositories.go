@@ -90,3 +90,24 @@ func (r *InMemoryControllerRepository) All() iter.Seq[*domain.Controller] {
 		})
 	}
 }
+
+// GetControllersWaitingFor retrieves all controllers waiting for a specific display ID.
+func (r *InMemoryControllerRepository) GetControllersWaitingFor(displayID string) []*domain.Controller {
+	var waitingControllers []*domain.Controller
+	r.controllers.Range(func(key, value any) bool {
+		controller, ok := value.(*domain.Controller)
+		if !ok {
+			return true // continue
+		}
+
+		controller.Mu.Lock()
+		isWaiting := controller.WaitingFor[displayID]
+		controller.Mu.Unlock()
+
+		if isWaiting {
+			waitingControllers = append(waitingControllers, controller)
+		}
+		return true
+	})
+	return waitingControllers
+}

@@ -53,9 +53,11 @@ export class Controller extends ControlyBase {
             type: 'controller',
             id: options.id || '',
         });
+        this.waitingList = [];
     }
     /**
      * Subscribes to one or more Displays to receive their command lists and status updates.
+     * If a display is offline, it will be added to the waiting list.
      * @param displayIds An array of Display IDs to subscribe to.
      * @throws {Error} if the WebSocket is not connected.
      */
@@ -66,7 +68,7 @@ export class Controller extends ControlyBase {
         });
     }
     /**
-     * Unsubscribes from one or more Displays.
+     * Unsubscribes from one or more Displays. This will also remove them from the waiting list.
      * @param displayIds An array of Display IDs to unsubscribe from.
      * @throws {Error} if the WebSocket is not connected.
      */
@@ -90,6 +92,13 @@ export class Controller extends ControlyBase {
         });
     }
     /**
+     * Returns the current list of display IDs that the controller is waiting for.
+     * @returns {string[]} An array of display IDs.
+     */
+    getWaitingList() {
+        return [...this.waitingList];
+    }
+    /**
      * Processes incoming messages from the server, specific to the Controller client.
      * @param message The parsed message from the server.
      * @internal
@@ -108,6 +117,12 @@ export class Controller extends ControlyBase {
                 break;
             case 'display_disconnected':
                 this.emitter.emit('display_disconnected', payload.display_id);
+                break;
+            case 'waiting':
+                console.log('payload', payload, payload || []);
+                this.waitingList = payload || [];
+                console.log('waiting list', this.waitingList, this.getWaitingList());
+                this.emitter.emit('waiting', this.getWaitingList());
                 break;
             default:
                 // Other message types are ignored by the controller.

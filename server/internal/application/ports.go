@@ -22,7 +22,7 @@ type ControllerRepository interface {
 	FindByID(id string) (*domain.Controller, bool)
 	Delete(id string)
 	All() iter.Seq[*domain.Controller]
-	// Add other necessary methods
+	GetControllersWaitingFor(displayID string) []*domain.Controller
 }
 
 // CommandFetcher defines the interface for fetching command.json from a URL.

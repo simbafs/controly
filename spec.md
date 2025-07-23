@@ -201,9 +201,7 @@
         {
         	"type": "waiting",
         	"from": "server",
-        	"payload": {
-        		"waiting": ["display-2", "display-offline"]
-        	}
+        	"payload": ["display-2", "display-offline"]
         }
         ```
     - **指令 (`command`, C -> S)**:

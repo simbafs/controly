@@ -43,6 +43,12 @@ func main() {
 		ConnManager:    wsGateway,
 	}
 
+	handleDisplayConnection := &application.HandleDisplayConnection{
+		ControllerRepo:   controllerRepo,
+		DisplayRepo:      displayRepo,
+		WebSocketService: wsGateway,
+	}
+
 	registerController := &application.RegisterController{
 		ControllerRepo:   controllerRepo,
 		WebSocketService: wsGateway,
@@ -79,6 +85,7 @@ func main() {
 	// Create dependencies struct for wsHandler
 	wsHandler := delivery.NewWsHandler(
 		registerDisplay,
+		handleDisplayConnection,
 		handleDisplayDisconnection,
 		registerController,
 		handleControllerDisconnection,

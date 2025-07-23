@@ -45,6 +45,7 @@ import { OutgoingMessage, CommandPayload, ControllerEventMap, ControlyOptions } 
  * ```
  */
 export declare class Controller extends ControlyBase<ControllerEventMap> {
+    private waitingList;
     /**
      * Creates an instance of a Controller client.
      * @param options The configuration options for the Controller.
@@ -52,12 +53,13 @@ export declare class Controller extends ControlyBase<ControllerEventMap> {
     constructor(options: ControlyOptions);
     /**
      * Subscribes to one or more Displays to receive their command lists and status updates.
+     * If a display is offline, it will be added to the waiting list.
      * @param displayIds An array of Display IDs to subscribe to.
      * @throws {Error} if the WebSocket is not connected.
      */
     subscribe(displayIds: string[]): void;
     /**
-     * Unsubscribes from one or more Displays.
+     * Unsubscribes from one or more Displays. This will also remove them from the waiting list.
      * @param displayIds An array of Display IDs to unsubscribe from.
      * @throws {Error} if the WebSocket is not connected.
      */
@@ -69,6 +71,11 @@ export declare class Controller extends ControlyBase<ControllerEventMap> {
      * @throws {Error} if the WebSocket is not connected.
      */
     sendCommand(displayId: string, command: CommandPayload): void;
+    /**
+     * Returns the current list of display IDs that the controller is waiting for.
+     * @returns {string[]} An array of display IDs.
+     */
+    getWaitingList(): string[];
     /**
      * Processes incoming messages from the server, specific to the Controller client.
      * @param message The parsed message from the server.

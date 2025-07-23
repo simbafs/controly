@@ -27,6 +27,9 @@ class EventEmitter {
      */
     emit(eventName, ...args) {
         const eventListeners = this.listeners.get(eventName);
+        if (eventName === 'waiting') {
+            console.log(eventListeners, args);
+        }
         if (eventListeners) {
             eventListeners.forEach(callback => callback(...args));
         }

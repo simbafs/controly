@@ -14,6 +14,7 @@ import (
 
 type WsHandler struct {
 	registerDisplay               *application.RegisterDisplay
+	handleDisplayConnectionUseCase *application.HandleDisplayConnection // New
 	handleDisplayDisconnection    *application.HandleDisplayDisconnection
 	registerController            *application.RegisterController
 	handleControllerDisconnection *application.HandleControllerDisconnection
@@ -24,6 +25,7 @@ type WsHandler struct {
 
 func NewWsHandler(
 	registerDisplay *application.RegisterDisplay,
+	handleDisplayConnectionUseCase *application.HandleDisplayConnection, // New
 	handleDisplayDisconnection *application.HandleDisplayDisconnection,
 	registerController *application.RegisterController,
 	handleControllerDisconnection *application.HandleControllerDisconnection,
@@ -33,6 +35,7 @@ func NewWsHandler(
 ) *WsHandler {
 	return &WsHandler{
 		registerDisplay:               registerDisplay,
+		handleDisplayConnectionUseCase:       handleDisplayConnectionUseCase, // New
 		handleDisplayDisconnection:    handleDisplayDisconnection,
 		registerController:            registerController,
 		handleControllerDisconnection: handleControllerDisconnection,
@@ -85,6 +88,9 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 	setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
 	// Here we use wsGateway directly as it's a simple message send, could be a use case too.
 	h.wsGateway.SendMessage(displayID, "server", "set_id", setIDPayload)
+
+	// After successful registration, check for waiting controllers
+	h.handleDisplayConnectionUseCase.Execute(displayID)
 
 	for {
 		_, p, err := h.wsGateway.ReadMessage(conn)

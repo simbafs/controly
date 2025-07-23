@@ -32,12 +32,14 @@ func (d *Display) RemoveSubscriber(controllerID string) {
 type Controller struct {
 	ID            string
 	Subscriptions map[string]bool // Map of Display IDs this Controller is subscribed to
-	Mu            sync.Mutex      // Mutex to protect access to Subscriptions
+	WaitingFor    map[string]bool // Map of Display IDs this Controller is waiting for
+	Mu            sync.Mutex      // Mutex to protect access to Subscriptions and WaitingFor
 }
 
 func NewController(id string) *Controller {
 	return &Controller{
 		ID:            id,
 		Subscriptions: make(map[string]bool),
+		WaitingFor:    make(map[string]bool),
 	}
 }

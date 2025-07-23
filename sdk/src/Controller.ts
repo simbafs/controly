@@ -56,6 +56,8 @@ import {
  * ```
  */
 export class Controller extends ControlyBase<ControllerEventMap> {
+	private waitingList: string[] = []
+
 	/**
 	 * Creates an instance of a Controller client.
 	 * @param options The configuration options for the Controller.
@@ -69,6 +71,7 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 
 	/**
 	 * Subscribes to one or more Displays to receive their command lists and status updates.
+	 * If a display is offline, it will be added to the waiting list.
 	 * @param displayIds An array of Display IDs to subscribe to.
 	 * @throws {Error} if the WebSocket is not connected.
 	 */
@@ -80,7 +83,7 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 	}
 
 	/**
-	 * Unsubscribes from one or more Displays.
+	 * Unsubscribes from one or more Displays. This will also remove them from the waiting list.
 	 * @param displayIds An array of Display IDs to unsubscribe from.
 	 * @throws {Error} if the WebSocket is not connected.
 	 */
@@ -106,6 +109,14 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 	}
 
 	/**
+	 * Returns the current list of display IDs that the controller is waiting for.
+	 * @returns {string[]} An array of display IDs.
+	 */
+	public getWaitingList(): string[] {
+		return [...this.waitingList]
+	}
+
+	/**
 	 * Processes incoming messages from the server, specific to the Controller client.
 	 * @param message The parsed message from the server.
 	 * @internal
@@ -124,10 +135,11 @@ export class Controller extends ControlyBase<ControllerEventMap> {
 				this.emitter.emit('notification', payload as NotificationPayload, from)
 				break
 			case 'display_disconnected':
-				this.emitter.emit(
-					'display_disconnected',
-					(payload as DisplayDisconnectedPayload).display_id,
-				)
+				this.emitter.emit('display_disconnected', (payload as DisplayDisconnectedPayload).display_id)
+				break
+			case 'waiting':
+				this.waitingList = payload || []
+				this.emitter.emit('waiting', this.getWaitingList())
 				break
 			default:
 				// Other message types are ignored by the controller.

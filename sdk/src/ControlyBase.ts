@@ -72,7 +72,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 
 		this.reconnect = options.reconnect ?? true
 		this.maxRetries = options.maxRetries ?? 5
-		this.reconnectDelay = options.reconnectDelay ?? 10*1000
+		this.reconnectDelay = options.reconnectDelay ?? 10 * 1000
 	}
 
 	/**
@@ -199,8 +199,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 		if (this.reconnectAttempts < this.maxRetries) {
 			this.reconnectAttempts++
 			console.log(
-				`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${
-					this.reconnectAttempts
+				`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${this.reconnectAttempts
 				}/${this.maxRetries})`,
 			)
 			this.cleanup()

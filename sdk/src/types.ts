@@ -16,6 +16,7 @@ export type MessageType =
 	| 'error'
 	| 'subscribed'
 	| 'unsubscribed'
+	| 'waiting'
 
 /**
  * Base interface for all WebSocket messages.
@@ -214,6 +215,11 @@ export type NotificationHandler = ControlyEventHandler<NotificationPayload>
 export type DisplayDisconnectedHandler = (displayId: string) => void
 
 /**
+ * Handler for 'waiting' events from the server, receiving the list of display IDs being waited for.
+ */
+export type WaitingHandler = (waitingList: string[]) => void
+
+/**
  * Handler for a specific command from a Controller.
  * @template T - The type of the command arguments.
  */
@@ -233,6 +239,7 @@ export interface ControllerEventMap {
 	command_list: CommandListHandler
 	notification: NotificationHandler
 	display_disconnected: DisplayDisconnectedHandler
+	waiting: WaitingHandler
 	[key: string]: (...args: any[]) => void
 }
 
@@ -247,7 +254,6 @@ export interface DisplayEventMap {
 	unsubscribed: UnsubscribedHandler
 	[key: string]: (...args: any[]) => void
 }
-
 
 /**
  * Options for initializing a Controly client.
