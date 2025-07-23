@@ -12,14 +12,14 @@ import (
 )
 
 type WsHandler struct {
-	registerDisplay               *application.RegisterDisplay
+	registerDisplay                *application.RegisterDisplay
 	handleDisplayConnectionUseCase *application.HandleDisplayConnection // New
-	handleDisplayDisconnection    *application.HandleDisplayDisconnection
-	registerController            *application.RegisterController
-	handleControllerDisconnection *application.HandleControllerDisconnection
-	processDisplayMessage         *application.ProcessDisplayMessage
-	processControllerMessage      *application.ProcessControllerMessage
-	wsGateway                     *infrastructure.GorillaWebSocketGateway
+	handleDisplayDisconnection     *application.HandleDisplayDisconnection
+	registerController             *application.RegisterController
+	handleControllerDisconnection  *application.HandleControllerDisconnection
+	processDisplayMessage          *application.ProcessDisplayMessage
+	processControllerMessage       *application.ProcessControllerMessage
+	wsGateway                      *infrastructure.GorillaWebSocketGateway
 }
 
 func NewWsHandler(
@@ -33,14 +33,14 @@ func NewWsHandler(
 	wsGateway *infrastructure.GorillaWebSocketGateway,
 ) *WsHandler {
 	return &WsHandler{
-		registerDisplay:               registerDisplay,
-		handleDisplayConnectionUseCase:       handleDisplayConnectionUseCase, // New
-		handleDisplayDisconnection:    handleDisplayDisconnection,
-		registerController:            registerController,
-		handleControllerDisconnection: handleControllerDisconnection,
-		processDisplayMessage:         processDisplayMessage,
-		processControllerMessage:      processControllerMessage,
-		wsGateway:                     wsGateway,
+		registerDisplay:                registerDisplay,
+		handleDisplayConnectionUseCase: handleDisplayConnectionUseCase, // New
+		handleDisplayDisconnection:     handleDisplayDisconnection,
+		registerController:             registerController,
+		handleControllerDisconnection:  handleControllerDisconnection,
+		processDisplayMessage:          processDisplayMessage,
+		processControllerMessage:       processControllerMessage,
+		wsGateway:                      wsGateway,
 	}
 }
 

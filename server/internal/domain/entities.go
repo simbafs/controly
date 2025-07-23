@@ -61,4 +61,3 @@ func (c *Controller) SetWaitingList(displayIDs []string, isDisplayOnline func(st
 	}
 	return finalWaitingList
 }
-
