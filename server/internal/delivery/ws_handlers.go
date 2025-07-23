@@ -1,7 +1,6 @@
 package delivery
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -85,9 +84,7 @@ func (h *WsHandler) handleDisplayConnection(conn *websocket.Conn, params url.Val
 	}
 
 	// Send set_id message to the display
-	setIDPayload, _ := json.Marshal(map[string]string{"id": displayID})
-	// Here we use wsGateway directly as it's a simple message send, could be a use case too.
-	h.wsGateway.SendMessage(displayID, "server", "set_id", setIDPayload)
+	h.wsGateway.SendJSON(displayID, "server", "set_id", map[string]string{"id": displayID})
 
 	// After successful registration, check for waiting controllers
 	h.handleDisplayConnectionUseCase.Execute(displayID)
@@ -122,10 +119,8 @@ func (h *WsHandler) handleControllerConnection(conn *websocket.Conn) {
 	}
 	defer h.handleControllerDisconnection.Execute(controllerID)
 
-	// No initial command_list sent here. Controller will subscribe and receive command_list.
-	setIDPayload, _ := json.Marshal(map[string]string{"id": controllerID})
 	// Send set_id message to the controller
-	h.wsGateway.SendMessage(controllerID, "server", "set_id", setIDPayload)
+	h.wsGateway.SendJSON(controllerID, "server", "set_id", map[string]string{"id": controllerID})
 
 	for {
 		_, p, err := h.wsGateway.ReadMessage(conn)

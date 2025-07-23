@@ -186,9 +186,18 @@ func (g *GorillaWebSocketGateway) SendMessage(to, from, msgType string, payload 
 	g.BroadcastMessage([]string{to}, from, msgType, payload)
 }
 
+// SendJSON marshals a payload object to JSON and sends it to a single recipient.
+func (g *GorillaWebSocketGateway) SendJSON(to, from, msgType string, payload any) {
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshalling payload for type '%s' to '%s': %v", msgType, to, err)
+		return
+	}
+	g.SendMessage(to, from, msgType, jsonPayload)
+}
+
 // SendError sends an error WebSocket message to a specific client.
 func (g *GorillaWebSocketGateway) SendError(clientID string, code int, message string) {
-	payload, _ := json.Marshal(domain.ErrorPayload{Code: code, Message: message})
 	// Errors are from the server
-	g.BroadcastMessage([]string{clientID}, "server", "error", payload)
+	g.SendJSON(clientID, "server", "error", domain.ErrorPayload{Code: code, Message: message})
 }

@@ -125,13 +125,7 @@ func (uc *HandleDisplayConnection) Execute(displayID string) {
 
 		// Notify controller
 		uc.WebSocketService.SendMessage(controller.ID, displayID, "command_list", display.CommandList)
-
-		payload, err := json.Marshal(newWaitingList)
-		if err != nil {
-			log.Printf("Error marshalling waiting list for controller '%s': %v", controller.ID, err)
-			continue
-		}
-		uc.WebSocketService.SendMessage(controller.ID, "server", "waiting", payload)
+		uc.WebSocketService.SendJSON(controller.ID, "server", "waiting", newWaitingList)
 
 		log.Printf("Automatically subscribed waiting controller '%s' to new display '%s'", controller.ID, displayID)
 	}
@@ -146,6 +140,7 @@ type HandleDisplayDisconnection struct {
 	ConnManager    interface {
 		UnregisterDisplayConnection(displayID string)
 		SendMessage(to, from, msgType string, payload json.RawMessage)
+		SendJSON(to, from, msgType string, payload any)
 	}
 }
 
@@ -187,16 +182,10 @@ func (uc *HandleDisplayDisconnection) Execute(displayID string) {
 			controller.Mu.Unlock()
 
 			// Notify controller that the display has disconnected
-			payload, _ := json.Marshal(domain.DisplayDisconnectedPayload{DisplayID: displayID})
-			uc.ConnManager.SendMessage(controllerID, "server", "display_disconnected", payload)
+			uc.ConnManager.SendJSON(controllerID, "server", "display_disconnected", domain.DisplayDisconnectedPayload{DisplayID: displayID})
 
 			// Send the updated waiting list
-			payload, err := json.Marshal(waitingList)
-			if err != nil {
-				log.Printf("Error marshalling waiting list for controller '%s': %v", controllerID, err)
-				continue
-			}
-			uc.ConnManager.SendMessage(controllerID, "server", "waiting", payload)
+			uc.ConnManager.SendJSON(controllerID, "server", "waiting", waitingList)
 		}
 	}
 
@@ -244,6 +233,7 @@ type HandleControllerDisconnection struct {
 	ConnManager    interface {
 		UnregisterControllerConnection(controllerID string)
 		SendMessage(to, from, msgType string, payload json.RawMessage)
+		SendJSON(to, from, msgType string, payload any)
 	}
 }
 
@@ -276,8 +266,7 @@ func (uc *HandleControllerDisconnection) Execute(controllerID string) {
 
 			// Notify the display that a controller has unsubscribed
 			unsubscribedCount := len(actualDisplay.Subscribers)
-			unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
-			uc.ConnManager.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload)
+			uc.ConnManager.SendJSON(displayID, "server", "unsubscribed", domain.UnsubscribedPayload{Count: unsubscribedCount})
 		}
 	}
 
@@ -457,8 +446,7 @@ func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte)
 
 			// Notify the display that a new controller has subscribed
 			subscribedCount := len(actualDisplay.Subscribers)
-			subscribedPayload, _ := json.Marshal(domain.SubscribedPayload{Count: subscribedCount})
-			uc.WebSocketService.SendMessage(displayID, "server", "subscribed", subscribedPayload)
+			uc.WebSocketService.SendJSON(displayID, "server", "subscribed", domain.SubscribedPayload{Count: subscribedCount})
 		}
 
 		// After processing all subscriptions, get the current waiting list and send it
@@ -469,12 +457,7 @@ func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte)
 		uc.ControllerRepo.Save(controller) // Persist controller changes (subscriptions and waiting list)
 		controller.Mu.Unlock()
 
-		msg, err := json.Marshal(waitingList)
-		if err != nil {
-			log.Printf("Error marshalling waiting list for controller '%s': %v", controllerID, err)
-			return fmt.Errorf("failed to marshal waiting list for controller '%s': %w", controllerID, err)
-		}
-		uc.WebSocketService.SendMessage(controllerID, "server", "waiting", msg)
+		uc.WebSocketService.SendJSON(controllerID, "server", "waiting", waitingList)
 		log.Printf("Controller '%s' subscribed to displays: %v", controllerID, payload.DisplayIDs)
 
 	case "unsubscribe":
@@ -498,8 +481,7 @@ func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte)
 					uc.DisplayRepo.Save(actualDisplay)
 
 					unsubscribedCount := len(actualDisplay.Subscribers)
-					unsubscribedPayload, _ := json.Marshal(domain.UnsubscribedPayload{Count: unsubscribedCount})
-					uc.WebSocketService.SendMessage(displayID, "server", "unsubscribed", unsubscribedPayload)
+					uc.WebSocketService.SendJSON(displayID, "server", "unsubscribed", domain.UnsubscribedPayload{Count: unsubscribedCount})
 				}
 			}
 			// Also remove from waiting list
@@ -514,14 +496,8 @@ func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte)
 		uc.ControllerRepo.Save(controller)
 		controller.Mu.Unlock()
 
-		msg, err := json.Marshal(waitingList)
-		if err != nil {
-			log.Printf("Error marshalling waiting list for controller '%s': %v", controllerID, err)
-			return fmt.Errorf("failed to marshal waiting list for controller '%s': %w", controllerID, err)
-		}
-		uc.WebSocketService.SendMessage(controllerID, "server", "waiting", msg)
+		uc.WebSocketService.SendJSON(controllerID, "server", "waiting", waitingList)
 		log.Printf("Controller '%s' unsubscribed from displays: %v", controllerID, payload.DisplayIDs)
-
 	case "command":
 		// Command messages must have a `to` field specifying the target display.
 		if msg.To == "" {

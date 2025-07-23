@@ -33,5 +33,6 @@ type CommandFetcher interface {
 // ClientNotifier defines the interface for sending WebSocket messages.
 type ClientNotifier interface {
 	SendMessage(to, from, msgType string, payload json.RawMessage)
+	SendJSON(to, from, msgType string, payload any)
 	SendError(clientID string, code int, message string)
 }
