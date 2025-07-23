@@ -43,3 +43,22 @@ func NewController(id string) *Controller {
 		WaitingFor:    make(map[string]bool),
 	}
 }
+
+// SetWaitingList clears the existing waiting list and sets it to the new list of display IDs.
+// It returns the final list of display IDs that were actually added to the waiting list.
+func (c *Controller) SetWaitingList(displayIDs []string, isDisplayOnline func(string) bool) []string {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	c.WaitingFor = make(map[string]bool)
+	finalWaitingList := []string{}
+
+	for _, id := range displayIDs {
+		if !isDisplayOnline(id) {
+			c.WaitingFor[id] = true
+			finalWaitingList = append(finalWaitingList, id)
+		}
+	}
+	return finalWaitingList
+}
+

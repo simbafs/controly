@@ -217,10 +217,13 @@ function updateWaitingList(list: string[]) {
 	container.appendChild(title)
 
 	list.forEach(id => {
-		const badge = document.createElement('span')
+		const badge = document.createElement('button')
 		badge.className =
-			'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800'
+			'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-red-400/30 transition-colors'
 		badge.textContent = id
+		badge.onclick = () => {
+			controller.setWaitingList(list.filter(item => item !== id))
+		}
 		container.appendChild(badge)
 	})
 }

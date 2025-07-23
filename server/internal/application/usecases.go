@@ -518,9 +518,63 @@ func (uc *ProcessControllerMessage) Execute(controllerID string, message []byte)
 		uc.WebSocketService.SendMessage(msg.To, controllerID, "command", msg.Payload)
 		log.Printf("Controller '%s' sent command to display '%s'.", controllerID, msg.To)
 
+	case "waiting":
+		var displayIDs []string
+		if err := json.Unmarshal(msg.Payload, &displayIDs); err != nil {
+			uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, "Invalid waiting payload format, expected a string array.")
+			return fmt.Errorf("invalid waiting payload format from controller '%s': %w", controllerID, err)
+		}
+
+		// The use case will handle the logic of updating the waiting list
+		// and sending the confirmation back to the controller.
+		updateWaitingList := &UpdateWaitingList{
+			ControllerRepo: uc.ControllerRepo,
+			DisplayRepo:    uc.DisplayRepo,
+			Notifier:       uc.WebSocketService,
+		}
+		if err := updateWaitingList.Execute(controllerID, displayIDs); err != nil {
+			// The use case itself should send an error notification if needed.
+			log.Printf("Error updating waiting list for controller '%s': %v", controllerID, err)
+			// We might not need to return the error up, as the use case handles notifications.
+			return nil // Or return err if further action is needed here.
+		}
+
 	default:
 		uc.WebSocketService.SendError(controllerID, domain.ErrInvalidMessageFormat, fmt.Sprintf("Unknown message type: %s", msg.Type))
 		return fmt.Errorf("unknown message type from controller '%s': %s", controllerID, msg.Type)
 	}
+	return nil
+}
+
+// UpdateWaitingList handles the business logic for a controller updating its waiting list.
+type UpdateWaitingList struct {
+	ControllerRepo ControllerRepository
+	DisplayRepo    DisplayRepository
+	Notifier       ClientNotifier
+}
+
+// Execute updates the controller's waiting list based on the provided display IDs.
+func (uc *UpdateWaitingList) Execute(controllerID string, displayIDs []string) error {
+	controller, found := uc.ControllerRepo.FindByID(controllerID)
+	if !found {
+		// This case should be rare, as the controller must be connected to send a message.
+		return fmt.Errorf("controller '%s' not found", controllerID)
+	}
+
+	isDisplayOnline := func(displayID string) bool {
+		_, found := uc.DisplayRepo.FindByID(displayID)
+		return found
+	}
+
+	// The SetWaitingList method now encapsulates the core logic.
+	finalWaitingList := controller.SetWaitingList(displayIDs, isDisplayOnline)
+
+	// Save the updated controller state.
+	uc.ControllerRepo.Save(controller)
+
+	// Send the confirmed, updated waiting list back to the controller.
+	uc.Notifier.SendJSON(controllerID, "server", "waiting", finalWaitingList)
+
+	log.Printf("Updated waiting list for controller '%s'. Now waiting for: %v", controllerID, finalWaitingList)
 	return nil
 }

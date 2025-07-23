@@ -79,6 +79,20 @@ export class Controller extends ControlyBase {
         });
     }
     /**
+     * Manually sets the waiting list on the server.
+     * This will overwrite the existing waiting list for this controller.
+     * The server will filter this list, keeping only the IDs of displays that are currently offline.
+     * The controller will receive a `waiting` event with the final, updated list.
+     * @param displayIds An array of Display IDs to wait for.
+     * @throws {Error} if the WebSocket is not connected.
+     */
+    setWaitingList(displayIds) {
+        this.sendMessage({
+            type: 'waiting',
+            payload: displayIds,
+        });
+    }
+    /**
      * Sends a command to a specific Display.
      * @param displayId The ID of the target Display.
      * @param command The command object to send.
@@ -119,9 +133,7 @@ export class Controller extends ControlyBase {
                 this.emitter.emit('display_disconnected', payload.display_id);
                 break;
             case 'waiting':
-                console.log('payload', payload, payload || []);
                 this.waitingList = payload || [];
-                console.log('waiting list', this.waitingList, this.getWaitingList());
                 this.emitter.emit('waiting', this.getWaitingList());
                 break;
             default:

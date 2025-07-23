@@ -142,6 +142,20 @@
         - 將斷線的 Display ID 加入到該 Controller 的等待列表中。
         - 向該 Controller 發送一條 `waiting` 訊息，其中包含其更新後的完整等待列表。
 
+### 4.5. Controller 主動更新等待列表
+
+Controller 可以發送一個 `set_waiting_list` 訊息來完全覆寫它在伺服器上的等待列表。這讓客戶端可以精確地控制它想要等待的 Display，例如，移除不再需要的等待項目。
+
+**流程細節:**
+
+1.  **發送請求**: Controller 發送 `waiting` 訊息，其 `payload` 是一個包含 id 的列表，伺服器收到後會根據他更新 controller 的 waiting list。
+2.  **伺服器處理**:
+    - 伺服器收到訊息後，會清除該 Controller 現有的等待列表。
+    - 伺服器遍歷 `display_ids` 陣列中的每一個 ID：
+        - 如果該 Display ID 當前是**離線**狀態，則將其加入到 Controller 新的等待列表中。
+        - 如果該 Display ID 當前是**線上**狀態，伺服器會**忽略**它，不將其加入等待列表（因為 Controller 應該使用 `subscribe` 來訂閱線上的 Display）。
+3.  **回傳確認**: 伺服器處理完畢後，會向 Controller 發送一條 `waiting` 訊息，其中包含最終確認的、更新後的等待列表（只包含離線的 ID）。
+
 ## 5. 資料結構定義
 
 ### 5.1. WebSocket 訊息格式
@@ -180,7 +194,7 @@
         - S -> C: 轉發時 `from` 欄位會是來源 Display 的 ID。
     - `subscribe` (Controller -> Server): Controller 用於訂閱一個或多個 Display。
     - `unsubscribe` (Controller -> Server): Controller 用於取消訂閱。
-    - `waiting` (Server -> Controller): 伺服器發送給 Controller，告知其正在等待的 Display 列表。`from` 會是 "server"。
+    - `waiting` (Server <-> Controller): 伺服器發送給 Controller，告知其正在等待的 Display 列表。`from` 會是 "server"。也可以是 Controller 發送給伺服器，用於修改 waiting list。
     - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。`from` 會是 "server"。
     - `subscribed` (Server -> Display): 伺服器發送給 Display 的，告知有新的 Controller 訂閱了它。`from` 會是 "server"。
     - `unsubscribed` (Server -> Display): 伺服器發送給 Display 的，告知有 Controller 取消訂閱或斷線。`from` 會是 "server"。
@@ -497,6 +511,8 @@ function sendVolumeCommand(displayId, volume) {
 - `.subscribe(displayIds)`: 訂閱一個或多個 Display。
     - `displayIds` (string[]): 目標 Display ID 的陣列。
 - `.unsubscribe(displayIds)`: 取消訂閱。
+- `.setWaitingList(displayIds)`: 手動設定等待列表。此操作會完全覆寫伺服器上儲存的等待列表。
+    - `displayIds` (string[]): 要等待的 Display ID 陣列。
 - `.sendCommand(displayId, command)`: 向指定的 Display 發送指令。
     - `displayId` (string): 目標 Display 的 ID。
     - `command` (object): 指令物件，包含 `name` 及選填的 `args`。
