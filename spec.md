@@ -104,9 +104,43 @@
 
 1.  Controller 發起 WebSocket 連線請求並註冊。
 2.  Controller 發送 `subscribe` 訊息，`payload` 中包含 `display_ids` 陣列。
-3.  Server 驗證 `display_ids` 中的每個 Display 是否存在。若有任何 Display 不存在，則回傳錯誤。
+3.  Server 驗證 `display_ids` 中的每個 Display 是否存在。若有 Display 不存在，則將 Controller 加入對應的等待列表 (詳見 4.3)；對於存在的 Display，則繼續下一步。
 4.  Server 建立 Controller 與目標 Display 之間的訂閱關係。
 5.  Server 將每個目標 Display 的命令集 (`command_list`) 分別發送給 Controller。
+
+### 4.3. Controller 等待列表 (Waiting List)
+
+當 Controller 嘗試訂閱一個當前離線的 Display 時，伺服器會將此訂閱請求放入一個等待列表，而不是立即拒絕。
+
+**流程細節:**
+
+1.  **訂閱請求**: Controller 發送 `subscribe` 訊息，其中包含一個或多個 `display_ids`。
+2.  **伺服器處理**:
+    - 對於線上存在的 Display，伺服器正常處理訂閱，並發送 `command_list`。
+    - 對於離線或不存在的 Display ID，伺服器將 `(controller_id, display_id)` 的配對記錄在等待列表中。
+    - 每次更新後，伺服器會向 Controller 發送一條 `waiting` 訊息，其中 `payload` 包含該 Controller **當前**正在等待的所有 Display ID 列表。
+3.  **Display 上線**: 當一個新的 Display 連線並成功註冊後。
+4.  **觸發等待列表**:
+    - 伺服器檢查該 Display ID 是否存在於任何等待列表中。
+    - 若存在，伺服器會為所有等待的 Controller 執行以下操作：
+        - 主動建立 Controller 與該 Display 之間的訂閱關係。
+        - 向 Controller 發送該 Display 的 `command_list`。
+        - 從 Controller 的等待列表中移除該 Display ID。
+        - 發送 waiting 更新等待列表
+
+### 4.4. Display 斷線處理
+
+當一個 Display 連線中斷時，伺服器需要確保所有訂閱它的 Controller 都能正確地更新其狀態，並將該 Display 移入等待列表。
+
+**流程細節:**
+
+1.  **偵測斷線**: 伺服器偵測到某個 Display 的 WebSocket 連線中斷。
+2.  **清理與通知**:
+    - 伺服器從活躍的 Display 列表中移除該 Display。
+    - 伺服器找到所有曾訂閱該 Display 的 Controller。
+    - 對於每一個訂閱者 (Controller)，伺服器執行以下操作：
+        - 將斷線的 Display ID 加入到該 Controller 的等待列表中。
+        - 向該 Controller 發送一條 `waiting` 訊息，其中包含其更新後的完整等待列表。
 
 ## 5. 資料結構定義
 
@@ -146,6 +180,7 @@
         - S -> C: 轉發時 `from` 欄位會是來源 Display 的 ID。
     - `subscribe` (Controller -> Server): Controller 用於訂閱一個或多個 Display。
     - `unsubscribe` (Controller -> Server): Controller 用於取消訂閱。
+    - `waiting` (Server -> Controller): 伺服器發送給 Controller，告知其正在等待的 Display 列表。`from` 會是 "server"。
     - `notification` (Server -> Client): 伺服器發送的通知，例如某個 Display 上線或下線。`from` 會是 "server"。
     - `subscribed` (Server -> Display): 伺服器發送給 Display 的，告知有新的 Controller 訂閱了它。`from` 會是 "server"。
     - `unsubscribed` (Server -> Display): 伺服器發送給 Display 的，告知有 Controller 取消訂閱或斷線。`from` 會是 "server"。
@@ -158,6 +193,16 @@
         	"type": "subscribe",
         	"payload": {
         		"display_ids": ["display-1", "display-2"]
+        	}
+        }
+        ```
+    - **等待列表更新 (`waiting`, S -> C)**:
+        ```json
+        {
+        	"type": "waiting",
+        	"from": "server",
+        	"payload": {
+        		"waiting": ["display-2", "display-offline"]
         	}
         }
         ```
