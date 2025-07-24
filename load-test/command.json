@@ -1,0 +1,7 @@
+[
+    {
+        "name": "ping",
+        "label": "Ping",
+        "type": "button"
+    }
+]
