@@ -34,6 +34,7 @@ export declare abstract class ControlyBase<EventMap extends Record<string, (...a
     private readonly reconnectDelay;
     private reconnectAttempts;
     private explicitDisconnect;
+    protected readonly silent: boolean;
     /**
      * The full WebSocket server URL.
      */
@@ -84,5 +85,15 @@ export declare abstract class ControlyBase<EventMap extends Record<string, (...a
      * @returns The client ID, or null if not yet assigned.
      */
     getId(): string | null;
+    /**
+     * Logs a message to the console if not in silent mode.
+     * @param {...any[]} args - The arguments to log.
+     */
+    protected _log(...args: any[]): void;
+    /**
+     * Logs a warning to the console if not in silent mode.
+     * @param {...any[]} args - The arguments to log.
+     */
+    protected _warn(...args: any[]): void;
 }
 export {};

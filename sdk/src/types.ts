@@ -298,4 +298,10 @@ export interface ControlyOptions {
 	 * @default 2000
 	 */
 	reconnectDelay?: number
+
+	/**
+	 * If true, suppresses all `console.log` and `console.warn` messages.
+	 * @default false
+	 */
+	silent?: boolean
 }

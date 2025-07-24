@@ -50,6 +50,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	private readonly reconnectDelay: number
 	private reconnectAttempts = 0
 	private explicitDisconnect = false
+	protected readonly silent: boolean
 
 	/**
 	 * The full WebSocket server URL.
@@ -73,6 +74,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 		this.reconnect = options.reconnect ?? true
 		this.maxRetries = options.maxRetries ?? 5
 		this.reconnectDelay = options.reconnectDelay ?? 10 * 1000
+		this.silent = options.silent ?? false
 	}
 
 	/**
@@ -90,7 +92,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	 */
 	public connect(): void {
 		if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-			console.warn('Connection is already active or connecting.')
+			this._warn('Connection is already active or connecting.')
 			return
 		}
 
@@ -144,7 +146,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 
 	private handleOpen = (): void => {
 		this.reconnectAttempts = 0
-		console.log('WebSocket connection established. Waiting for client ID.')
+		this._log('WebSocket connection established. Waiting for client ID.')
 	}
 
 	private handleMessage = (event: MessageEvent): void => {
@@ -198,7 +200,7 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 
 		if (this.reconnectAttempts < this.maxRetries) {
 			this.reconnectAttempts++
-			console.log(
+			this._log(
 				`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${this.reconnectAttempts
 				}/${this.maxRetries})`,
 			)
@@ -221,5 +223,25 @@ export abstract class ControlyBase<EventMap extends Record<string, (...args: any
 	 */
 	public getId(): string | null {
 		return this.clientId
+	}
+
+	/**
+	 * Logs a message to the console if not in silent mode.
+	 * @param {...any[]} args - The arguments to log.
+	 */
+	protected _log(...args: any[]): void {
+		if (!this.silent) {
+			console.log(...args)
+		}
+	}
+
+	/**
+	 * Logs a warning to the console if not in silent mode.
+	 * @param {...any[]} args - The arguments to log.
+	 */
+	protected _warn(...args: any[]): void {
+		if (!this.silent) {
+			console.warn(...args)
+		}
 	}
 }

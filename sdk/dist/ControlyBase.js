@@ -50,7 +50,7 @@ export class ControlyBase {
         this.explicitDisconnect = false;
         this.handleOpen = () => {
             this.reconnectAttempts = 0;
-            console.log('WebSocket connection established. Waiting for client ID.');
+            this._log('WebSocket connection established. Waiting for client ID.');
         };
         this.handleMessage = (event) => {
             try {
@@ -91,7 +91,7 @@ export class ControlyBase {
             }
             if (this.reconnectAttempts < this.maxRetries) {
                 this.reconnectAttempts++;
-                console.log(`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${this.reconnectAttempts}/${this.maxRetries})`);
+                this._log(`Connection lost. Attempting to reconnect in ${this.reconnectDelay / 1000}s... (${this.reconnectAttempts}/${this.maxRetries})`);
                 this.cleanup();
                 setTimeout(() => {
                     this.connect();
@@ -115,6 +115,7 @@ export class ControlyBase {
         this.reconnect = options.reconnect ?? true;
         this.maxRetries = options.maxRetries ?? 5;
         this.reconnectDelay = options.reconnectDelay ?? 10 * 1000;
+        this.silent = options.silent ?? false;
     }
     /**
      * Registers an event listener for a specific event.
@@ -130,7 +131,7 @@ export class ControlyBase {
      */
     connect() {
         if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-            console.warn('Connection is already active or connecting.');
+            this._warn('Connection is already active or connecting.');
             return;
         }
         this.cleanup();
@@ -182,5 +183,23 @@ export class ControlyBase {
      */
     getId() {
         return this.clientId;
+    }
+    /**
+     * Logs a message to the console if not in silent mode.
+     * @param {...any[]} args - The arguments to log.
+     */
+    _log(...args) {
+        if (!this.silent) {
+            console.log(...args);
+        }
+    }
+    /**
+     * Logs a warning to the console if not in silent mode.
+     * @param {...any[]} args - The arguments to log.
+     */
+    _warn(...args) {
+        if (!this.silent) {
+            console.warn(...args);
+        }
     }
 }
