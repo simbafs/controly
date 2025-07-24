@@ -1,0 +1,3 @@
+- 使用 pnpm，永遠不要刪除 ./pnpm-*.yaml
+- 永遠不要直接修改 package.json，請使用命令 npm
+

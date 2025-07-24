@@ -9,30 +9,23 @@ const SERVER_URL = import.meta.env.PROD ? location.origin.replace('http', 'ws') 
 const controller = new Controller({ serverUrl: SERVER_URL })
 let html5QrcodeScanner: Html5QrcodeScanner | null = null
 
-// --- Tailwind CSS classes ---
-const baseInputClass =
-	'block rounded-md border-0 px-2 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 grow-3'
-const baseButtonClass =
-	'rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-const baseLabelClass = 'block text-sm font-medium leading-6 text-gray-900 grow'
-// ---
-
 function bindController(displayID: string, commandList: Command[], parent: HTMLDivElement) {
 	const container = document.createElement('div')
-	container.className = 'w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm'
+	container.className = 'card w-full max-w-2xl bg-base-100 shadow-xl'
 	container.dataset.displayId = displayID
 
-	const header = document.createElement('div')
-	header.className = 'flex items-center justify-between border-b border-gray-200 pb-4 mb-4 -mt-2'
+	const cardBody = document.createElement('div')
+	cardBody.className = 'card-body gap-6'
 
-	const title = document.createElement('h3')
-	title.className = 'text-lg font-semibold leading-7 text-gray-900'
+	const header = document.createElement('div')
+	header.className = 'card-title flex items-center justify-between'
+
+	const title = document.createElement('h2')
 	title.textContent = `Display: ${displayID}`
 
 	const disconnectBtn = document.createElement('button')
 	disconnectBtn.textContent = 'Disconnect'
-	disconnectBtn.className =
-		'rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600'
+	disconnectBtn.className = 'btn btn-error btn-sm'
 	disconnectBtn.addEventListener('click', () => {
 		controller.unsubscribe([displayID])
 		container.remove()
@@ -41,15 +34,18 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 
 	header.appendChild(title)
 	header.appendChild(disconnectBtn)
-	container.appendChild(header)
+	cardBody.appendChild(header)
 
 	const controlContainer = document.createElement('div')
-	controlContainer.className = 'space-y-6 flex flex-col gap-1'
+	controlContainer.className = 'space-y-2 flex flex-col gap-1'
 
 	function label(text: string, htmlFor: string): HTMLLabelElement {
 		const label = document.createElement('label')
-		label.className = baseLabelClass
-		label.textContent = text
+		label.className = 'label'
+		const span = document.createElement('span')
+		span.className = 'label-text'
+		span.textContent = text
+		label.appendChild(span)
 		label.htmlFor = htmlFor
 		return label
 	}
@@ -57,14 +53,14 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 	for (const cmd of commandList) {
 		const id = `${displayID}-${cmd.name}`
 		const fieldContainer = document.createElement('div')
-		fieldContainer.className = 'flex items-center gap-3'
+		fieldContainer.className = 'flex gap-2 items-center'
 		switch (cmd.type) {
 			case 'text':
 				const input = document.createElement('input')
 				input.id = id
 				input.type = 'text'
 				input.name = cmd.name
-				input.className = `${baseInputClass} mt-2`
+				input.className = `input input-bordered w-full mt-2`
 				input.addEventListener('change', () => {
 					controller.sendCommand(displayID, {
 						name: cmd.name,
@@ -78,7 +74,7 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				const numberInput = document.createElement('input')
 				numberInput.type = 'number'
 				numberInput.name = cmd.name
-				numberInput.className = `${baseInputClass} mt-2`
+				numberInput.className = `input input-bordered grow`
 				numberInput.addEventListener('change', () => {
 					controller.sendCommand(displayID, {
 						name: cmd.name,
@@ -96,7 +92,7 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				const btn = document.createElement('button')
 				btn.textContent = cmd.label
 				btn.name = cmd.name
-				btn.className = baseButtonClass + ' grow'
+				btn.className = 'btn btn-primary grow'
 				btn.addEventListener('click', () => {
 					controller.sendCommand(displayID, { name: cmd.name })
 				})
@@ -104,7 +100,7 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				break
 			case 'select':
 				const select = document.createElement('select')
-				select.className = `${baseInputClass} mt-2`
+				select.className = `select select-bordered w-full mt-2`
 				for (const option of cmd.options) {
 					const opt = document.createElement('option')
 					opt.value = option.value.toString()
@@ -119,14 +115,24 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 					})
 				})
 				select.value = cmd.default?.toString() || ''
+				fieldContainer.appendChild(label(cmd.label, id))
 				fieldContainer.appendChild(select)
 				break
 			case 'checkbox':
+				const checkboxContainer = document.createElement('div')
+				checkboxContainer.className = 'form-control'
+				const labelCheckbox = document.createElement('label')
+				labelCheckbox.className = 'label cursor-pointer'
+				const span = document.createElement('span')
+				span.className = 'label-text'
+				span.textContent = cmd.label
+				labelCheckbox.appendChild(span)
+
 				const checkbox = document.createElement('input')
 				checkbox.type = 'checkbox'
 				checkbox.name = cmd.name
 				checkbox.checked = cmd.default || false
-				checkbox.className = 'h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600'
+				checkbox.className = 'checkbox'
 				checkbox.addEventListener('change', () => {
 					controller.sendCommand(displayID, {
 						name: cmd.name,
@@ -135,8 +141,8 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 				})
 				label.htmlFor = cmd.name
 				checkbox.id = id
-				fieldContainer.appendChild(checkbox)
-				fieldContainer.appendChild(label(cmd.label, id))
+				labelCheckbox.appendChild(checkbox)
+				fieldContainer.appendChild(labelCheckbox)
 				break
 			default:
 				console.warn(`Unknown command:`, cmd)
@@ -144,14 +150,15 @@ function bindController(displayID: string, commandList: Command[], parent: HTMLD
 		}
 		controlContainer.appendChild(fieldContainer)
 	}
-	container.appendChild(controlContainer)
+	cardBody.appendChild(controlContainer)
 
 	const status = document.createElement('div')
 	status.id = `status-${displayID}`
 	status.className =
-		'mt-6 pt-4 border-t border-dashed border-gray-200 font-mono text-xs break-all whitespace-pre-wrap text-gray-600'
-	container.appendChild(status)
+		'pt-4 border-t border-dashed border-gray-200 font-mono text-xs break-all whitespace-pre-wrap text-gray-600'
+	cardBody.appendChild(status)
 
+	container.appendChild(cardBody)
 	parent.appendChild(container)
 }
 
@@ -212,14 +219,13 @@ function updateWaitingList(list: string[]) {
 	container.style.display = 'flex'
 
 	const title = document.createElement('span')
-	title.className = 'text-sm font-medium text-gray-500 mr-2'
+	title.className = 'label-text mr-2'
 	title.textContent = 'Waiting for:'
 	container.appendChild(title)
 
 	list.forEach(id => {
 		const badge = document.createElement('button')
-		badge.className =
-			'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-red-400/30 transition-colors'
+		badge.className = 'badge badge-ghost hover:badge-error transition-colors'
 		badge.textContent = id
 		badge.onclick = () => {
 			controller.setWaitingList(list.filter(item => item !== id))
@@ -297,22 +303,17 @@ controller.connect()
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <h1 id="connecting" class="text-2xl font-bold text-gray-500">Connecting...</h1>
   <div id="controller" class="hidden w-full max-w-md flex-col items-center gap-6">
-    <div id="waiting-list" class="hidden w-full flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3"></div>
+    <div id="waiting-list" class="hidden w-full flex-wrap items-center gap-2 rounded-lg bg-base-200 p-3"></div>
     <div class="w-full">
-      <button id="open-scanner" type="button" class="${baseButtonClass} w-full justify-center">Scan QR Code</button>
+      <button id="open-scanner" type="button" class="btn btn-primary w-full">Scan QR Code</button>
       
-      <div class="relative my-4">
-        <div class="absolute inset-0 flex items-center" aria-hidden="true">
-          <div class="w-full border-t border-gray-300"></div>
-        </div>
-        <div class="relative flex justify-center">
-          <span class="bg-gray-50 px-2 text-sm text-gray-500">or</span>
-        </div>
-      </div>
+      <div class="divider">or</div>
 
-      <div class="flex gap-x-2">
-        <input type="text" id="id-input" placeholder="Enter Display ID" class="${baseInputClass}" />
-        <button id="connect-display" type="button" class="${baseButtonClass}">Connect</button>
+      <div class="form-control">
+        <div class="w-full flex gap-2">
+          <input type="text" id="id-input" placeholder="Enter Display ID" class="input input-bordered join-item w-full" />
+          <button id="connect-display" type="button" class="btn btn-primary join-item">Connect</button>
+        </div>
       </div>
     </div>
     <div id="controllers" class="w-full space-y-6"></div>
@@ -320,6 +321,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
   <div id="scanner-container" class="fixed inset-0 z-50 hidden flex-col items-center justify-center gap-4 bg-black/80">
     <div id="qr-reader" class="w-[90%] max-w-lg overflow-hidden rounded-xl bg-white"></div>
-    <button id="close-scanner" type="button" class="${baseButtonClass}">Close Scanner</button>
+    <button id="close-scanner" type="button" class="btn">Close Scanner</button>
   </div>
 `

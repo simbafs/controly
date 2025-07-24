@@ -14,6 +14,9 @@ importers:
       controly:
         specifier: link:../../sdk
         version: link:../../sdk
+      daisyui:
+        specifier: ^5.0.46
+        version: 5.0.46
       html5-qrcode:
         specifier: ^2.3.8
         version: 2.3.8
@@ -409,6 +412,9 @@ packages:
   chownr@3.0.0:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
+
+  daisyui@5.0.46:
+    resolution: {integrity: sha512-vMDZK1tI/bOb2Mc3Mk5WpquBG3ZqBz1YKZ0xDlvpOvey60dOS4/5Qhdowq1HndbQl7PgDLDYysxAjjUjwR7/eQ==}
 
   detect-libc@2.0.4:
     resolution: {integrity: sha512-3UDv+G9CsCKO1WKMGw9fwq/SWJYbI0c5Y7LU1AXYoDdbhE2AHQ6N6Nb34sG8Fj7T5APy8qXDCKuuIHd1BR0tVA==}
@@ -862,6 +868,8 @@ snapshots:
       undici-types: 7.8.0
 
   chownr@3.0.0: {}
+
+  daisyui@5.0.46: {}
 
   detect-libc@2.0.4: {}
 
