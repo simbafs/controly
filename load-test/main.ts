@@ -109,6 +109,11 @@ const argvPromise = yargs(hideBin(process.argv))
 		type: 'number',
 		description: 'Maximum acceptable client error rate (0.0 to 1.0)',
 		default: 0.05,
+	})
+	.option('creationTimeout', {
+		type: 'number',
+		description: 'Maximum time (in seconds) to wait for client creation in a single level.',
+		default: 120,
 	}).argv
 
 // --- Global State ---
@@ -207,25 +212,56 @@ async function createAndConnectDisplay(displayId: string, serverUrl: string, spm
 	return display
 }
 
-async function setClientPoolSize(targetControllers: number, dpc: number, serverUrl: string, cpm: number, spm: number) {
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+const timeout = (ms: number, message: string) =>
+	new Promise((_, reject) => {
+		setTimeout(() => {
+			reject(new Error(message))
+		}, ms)
+	})
+
+async function setClientPoolSize(
+	targetControllers: number,
+	dpc: number,
+	serverUrl: string,
+	cpm: number,
+	spm: number,
+	creationTimeout: number,
+): Promise<boolean> {
 	const currentControllers = clientPool.controllers.length
 	const diff = targetControllers - currentControllers
 
 	if (diff > 0) {
 		console.log(chalk.dim(`Adding ${diff} controllers and ${diff * dpc} displays...`))
-		const newControllerPromises: Promise<MonitoredController>[] = []
-		const newDisplayPromises: Promise<MonitoredDisplay>[] = []
-		for (let i = 0; i < diff; i++) {
-			const controllerIdNum = currentControllers + i
-			const controllerId = `load-test-controller-${controllerIdNum}`
-			const displayIds = Array.from({ length: dpc }, (_, j) => `load-test-display-${controllerIdNum}-${j}`)
-			newControllerPromises.push(createAndConnectController(controllerId, displayIds, serverUrl, cpm))
-			displayIds.forEach(did => newDisplayPromises.push(createAndConnectDisplay(did, serverUrl, spm)))
+
+		const createClientsTask = async () => {
+			for (let i = 0; i < diff; i++) {
+				const controllerIdNum = clientPool.controllers.length
+				const controllerId = `load-test-controller-${controllerIdNum}`
+				const displayIds = Array.from({ length: dpc }, (_, j) => `load-test-display-${controllerIdNum}-${j}`)
+
+				const controllerPromise = createAndConnectController(controllerId, displayIds, serverUrl, cpm)
+				const displayPromises = displayIds.map(did => createAndConnectDisplay(did, serverUrl, spm))
+
+				const [newController, ...newDisplays] = await Promise.all([controllerPromise, ...displayPromises])
+
+				clientPool.controllers.push(newController as MonitoredController)
+				clientPool.displays.push(...(newDisplays as MonitoredDisplay[]))
+
+				await delay(10 + Math.random() * 20)
+			}
 		}
-		const newControllers = await Promise.all(newControllerPromises)
-		const newDisplays = await Promise.all(newDisplayPromises)
-		clientPool.controllers.push(...newControllers)
-		clientPool.displays.push(...newDisplays)
+
+		try {
+			await Promise.race([
+				createClientsTask(),
+				timeout(creationTimeout * 1000, `Client creation timed out after ${creationTimeout}s.`),
+			])
+		} catch (error: any) {
+			console.log(chalk.yellow(error.message))
+			return false // Indicate failure
+		}
 	} else if (diff < 0) {
 		const toRemove = -diff
 		console.log(chalk.dim(`Removing ${toRemove} controllers and ${toRemove * dpc} displays...`))
@@ -234,8 +270,11 @@ async function setClientPoolSize(targetControllers: number, dpc: number, serverU
 		controllersToRemove.forEach(c => c.disconnect())
 		displaysToRemove.forEach(d => d.disconnect())
 	}
+
+	// Reset failure status for the new level
 	clientPool.controllers.forEach(c => (c.hasFailed = false))
 	clientPool.displays.forEach(d => (d.hasFailed = false))
+	return true // Indicate success
 }
 
 // --- Monitoring ---
@@ -338,7 +377,25 @@ async function runTestAtLevel(
 		`\n--- Testing with ${chalk.bold.cyan(connections.controllers.toString())} Controllers and ${chalk.bold.cyan(connections.displays.toString())} Displays ---`,
 	)
 
-	await setClientPoolSize(connections.controllers, argv.dpc, argv.serverUrl, argv.cpm, argv.spm)
+	const creationSuccess = await setClientPoolSize(
+		connections.controllers,
+		argv.dpc,
+		argv.serverUrl,
+		argv.cpm,
+		argv.spm,
+		argv.creationTimeout,
+	)
+
+	if (!creationSuccess) {
+		const reason = `Client creation timed out after ${argv.creationTimeout}s.`
+		const result: LevelResult = {
+			success: false,
+			reason: reason,
+		}
+		console.error(`--- Level ${chalk.bold.red('FAILED')} ---`)
+		console.error(`Reason: ${reason}`)
+		return { result, connections: connections.controllers }
+	}
 
 	console.log(chalk.dim(`Stabilizing and monitoring for ${argv.duration} seconds...`))
 	const result = await runLevelForDuration(
@@ -410,7 +467,7 @@ async function runLoadTest() {
 	)
 	console.log(`This supports ${chalk.bold.cyan((lastKnownGood * argv.dpc).toString())} display clients.`)
 
-	await setClientPoolSize(0, argv.dpc, argv.serverUrl, argv.cpm, argv.spm)
+	await setClientPoolSize(0, argv.dpc, argv.serverUrl, argv.cpm, argv.spm, argv.creationTimeout)
 	process.exit(0)
 }
 

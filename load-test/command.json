@@ -1,7 +1,7 @@
 [
-    {
-        "name": "ping",
-        "label": "Ping",
-        "type": "button"
-    }
+	{
+		"name": "ping",
+		"label": "Ping",
+		"type": "button"
+	}
 ]

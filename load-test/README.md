@@ -24,7 +24,7 @@ The test monitors the following key metrics to determine server health:
 3.  **Server Resources**: The script periodically polls a `/api/metrics` endpoint on the server to fetch:
     - CPU Usage (%)
     - Memory Usage (MB)
-    If either resource exceeds its configured maximum, the test fails.
+      If either resource exceeds its configured maximum, the test fails.
 
 ## How to Run the Test
 
@@ -52,18 +52,18 @@ The test monitors the following key metrics to determine server health:
 
 The test script can be configured via the following command-line arguments.
 
-| Argument                    | Alias | Description                                           | Default Value                  |
-| --------------------------- | ----- | ----------------------------------------------------- | ------------------------------ |
-| `--dpc`                     |       | Number of Display clients per Controller              | `1`                            |
-| `--cpm`                     |       | Commands sent per minute by each Controller           | `60`                           |
-| `--spm`                     |       | Status updates sent per minute by each Display        | `60`                           |
-| `--serverUrl`               |       | WebSocket URL of the Controly server                  | `ws://localhost:8080/ws`       |
-| `--metricsUrl`              |       | HTTP URL for the server metrics endpoint              | `http://localhost:8080/api/metrics` |
-| `--stepSize`                |       | Number of Controllers to add at each test level       | `10`                           |
-| `--duration`                |       | Duration (in seconds) for each test level             | `60`                           |
-| `--maxLatency`              |       | Maximum acceptable average command latency (ms)       | `500`                          |
-| `--maxCpu`                  |       | Maximum acceptable average server CPU usage (%)       | `90`                           |
-| `--maxMemory`               |       | Maximum acceptable average server memory usage (MB)   | `1024`                         |
+| Argument       | Alias | Description                                         | Default Value                       |
+| -------------- | ----- | --------------------------------------------------- | ----------------------------------- |
+| `--dpc`        |       | Number of Display clients per Controller            | `1`                                 |
+| `--cpm`        |       | Commands sent per minute by each Controller         | `60`                                |
+| `--spm`        |       | Status updates sent per minute by each Display      | `60`                                |
+| `--serverUrl`  |       | WebSocket URL of the Controly server                | `ws://localhost:8080/ws`            |
+| `--metricsUrl` |       | HTTP URL for the server metrics endpoint            | `http://localhost:8080/api/metrics` |
+| `--stepSize`   |       | Number of Controllers to add at each test level     | `10`                                |
+| `--duration`   |       | Duration (in seconds) for each test level           | `60`                                |
+| `--maxLatency` |       | Maximum acceptable average command latency (ms)     | `500`                               |
+| `--maxCpu`     |       | Maximum acceptable average server CPU usage (%)     | `90`                                |
+| `--maxMemory`  |       | Maximum acceptable average server memory usage (MB) | `1024`                              |
 
 **Example:** To run the test with 2 displays per controller and a step size of 5:
 
