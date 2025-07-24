@@ -2,7 +2,7 @@
  * @file Implements the base client with common WebSocket logic for Controly.
  */
 
-import { IncomingMessage, OutgoingMessage, MessageType, SetIdPayload, ErrorPayload, ControlyOptions } from './types'
+import { IncomingMessage, OutgoingMessage, MessageType, SetIdPayload, ErrorPayload, ControlyOptions } from './types.js'
 
 /**
  * An internal, simple event emitter.

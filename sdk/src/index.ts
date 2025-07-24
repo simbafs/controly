@@ -4,9 +4,9 @@
  */
 
 // Core Client Classes
-export { Controller } from './Controller'
-export { Display } from './Display'
+export { Controller } from './Controller.js'
+export { Display } from './Display.js'
 
 // Type Definitions
-export * from './types'
+export * from './types.js'
 

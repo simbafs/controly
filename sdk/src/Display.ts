@@ -2,7 +2,7 @@
  * @file Implements the Display client for the Controly SDK.
  */
 
-import { ControlyBase } from './ControlyBase'
+import { ControlyBase } from './ControlyBase.js'
 import {
 	OutgoingMessage,
 	StatusPayload,
@@ -12,7 +12,7 @@ import {
 	SubscribedPayload,
 	UnsubscribedPayload,
 	ControlyOptions,
-} from './types'
+} from './types.js'
 
 /**
  * The Display client for Controly.

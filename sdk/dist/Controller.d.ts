@@ -1,8 +1,8 @@
 /**
  * @file Implements the Controller client for the Controly SDK.
  */
-import { ControlyBase } from './ControlyBase';
-import { OutgoingMessage, CommandPayload, ControllerEventMap, ControlyOptions } from './types';
+import { ControlyBase } from './ControlyBase.js';
+import { OutgoingMessage, CommandPayload, ControllerEventMap, ControlyOptions } from './types.js';
 /**
  * The Controller client for Controly.
  * This class is used for clients that need to control one or more Displays.

@@ -1,7 +1,7 @@
 /**
  * @file Implements the Controller client for the Controly SDK.
  */
-import { ControlyBase } from './ControlyBase';
+import { ControlyBase } from './ControlyBase.js';
 /**
  * The Controller client for Controly.
  * This class is used for clients that need to control one or more Displays.

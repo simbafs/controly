@@ -1,7 +1,7 @@
 /**
  * @file Implements the Display client for the Controly SDK.
  */
-import { ControlyBase } from './ControlyBase';
+import { ControlyBase } from './ControlyBase.js';
 /**
  * The Display client for Controly.
  * This class is used for devices that need to be controlled remotely.

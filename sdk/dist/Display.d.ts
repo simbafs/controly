@@ -1,8 +1,8 @@
 /**
  * @file Implements the Display client for the Controly SDK.
  */
-import { ControlyBase } from './ControlyBase';
-import { OutgoingMessage, StatusPayload, CommandHandler, DisplayEventMap, ControlyOptions } from './types';
+import { ControlyBase } from './ControlyBase.js';
+import { OutgoingMessage, StatusPayload, CommandHandler, DisplayEventMap, ControlyOptions } from './types.js';
 /**
  * The Display client for Controly.
  * This class is used for devices that need to be controlled remotely.

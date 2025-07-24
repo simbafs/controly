@@ -2,7 +2,7 @@
  * @file Implements the Controller client for the Controly SDK.
  */
 
-import { ControlyBase } from './ControlyBase'
+import { ControlyBase } from './ControlyBase.js'
 import {
 	OutgoingMessage,
 	CommandPayload,
@@ -12,7 +12,7 @@ import {
 	NotificationPayload,
 	DisplayDisconnectedPayload,
 	ControlyOptions,
-} from './types'
+} from './types.js'
 
 /**
  * The Controller client for Controly.
