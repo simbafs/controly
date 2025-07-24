@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
-import { resolve } from 'path';
+import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
+import { resolve } from 'path'
 
 export default defineConfig({
 	plugins: [tailwindcss()],
@@ -14,9 +14,9 @@ export default defineConfig({
 				// JS files for entries
 				entryFileNames: info => {
 					if (info.name === 'inspector') {
-						return 'inspector/[name].js';
+						return 'inspector/[name].js'
 					}
-					return '[name].js';
+					return '[name].js'
 				},
 				// JS files for code-split chunks
 				chunkFileNames: 'assets/[name]-[hash].js',
@@ -25,4 +25,4 @@ export default defineConfig({
 			},
 		},
 	},
-});
+})

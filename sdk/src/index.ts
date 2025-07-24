@@ -9,4 +9,3 @@ export { Display } from './Display.js'
 
 // Type Definitions
 export * from './types.js'
-

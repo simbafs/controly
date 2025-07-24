@@ -505,7 +505,6 @@ async function main() {
 		controller.close()
 	})
 
-
 	// TODO: These two test will cause deadlock
 	await testCase('Delete Display via REST API', async () => {
 		const display = connectWebSocket('Display Del', 'display', {
