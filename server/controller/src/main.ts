@@ -225,7 +225,7 @@ function updateWaitingList(list: string[]) {
 
 	list.forEach(id => {
 		const badge = document.createElement('button')
-		badge.className = 'badge badge-ghost hover:badge-error transition-colors'
+		badge.className = 'badge badge-outline badge-primary rounded-full hover:badge-error transition-colors'
 		badge.textContent = id
 		badge.onclick = () => {
 			controller.setWaitingList(list.filter(item => item !== id))
