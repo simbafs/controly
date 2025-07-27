@@ -6,6 +6,27 @@ import (
 	// sync "github.com/linkdata/deadlock"
 )
 
+// ClientType defines the type of a connected client.
+type ClientType int
+
+const (
+	_ ClientType = iota
+	ClientTypeDisplay
+	ClientTypeController
+)
+
+// String returns the string representation of a ClientType.
+func (ct ClientType) String() string {
+	switch ct {
+	case ClientTypeDisplay:
+		return "display"
+	case ClientTypeController:
+		return "controller"
+	default:
+		return "unknown"
+	}
+}
+
 // Display represents a connected Display device.
 type Display struct {
 	ID          string

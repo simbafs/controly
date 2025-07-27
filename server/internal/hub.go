@@ -32,7 +32,7 @@ type Client struct {
 	conn       *websocket.Conn
 	send       chan []byte
 	id         string
-	clientType string
+	clientType domain.ClientType
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -126,9 +126,9 @@ func (h *Hub) Run() {
 
 func (h *Hub) registerClient(client *Client) {
 	switch client.clientType {
-	case "display":
+	case domain.ClientTypeDisplay:
 		h.displays.Store(client.id, client)
-	case "controller":
+	case domain.ClientTypeController:
 		h.controllers.Store(client.id, client)
 	}
 	log.Printf("Client registered: %s (%s)", client.id, client.clientType)
@@ -136,12 +136,12 @@ func (h *Hub) registerClient(client *Client) {
 
 func (h *Hub) unregisterClient(client *Client) {
 	switch client.clientType {
-	case "display":
+	case domain.ClientTypeDisplay:
 		h.displays.Delete(client.id)
 		h.displayEntities.Delete(client.id)
 		h.handleDisplayDisconnection(client.id)
 		log.Printf("Display unregistered and removed: %s", client.id)
-	case "controller":
+	case domain.ClientTypeController:
 		h.controllers.Delete(client.id)
 		h.controllerEntities.Delete(client.id)
 		h.handleControllerDisconnection(client.id)
@@ -158,9 +158,9 @@ func (h *Hub) handleMessage(client *Client, message []byte) {
 	}
 
 	switch client.clientType {
-	case "display":
+	case domain.ClientTypeDisplay:
 		h.handleDisplayMessage(client, &msg)
-	case "controller":
+	case domain.ClientTypeController:
 		h.handleControllerMessage(client, &msg)
 	}
 }
@@ -217,10 +217,6 @@ func (h *Hub) broadcast(targets []string, from, msgType string, payload any) {
 	}
 }
 
-func (h *Hub) sendError(to string, code int, message string) {
-	h.send(to, "server", "error", domain.ErrorPayload{Code: code, Message: message})
-}
-
 func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -228,22 +224,25 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientType := r.URL.Query().Get("type")
+	clientTypeStr := r.URL.Query().Get("type")
 	var clientID string
+	var clientTypeEnum domain.ClientType
 
-	switch clientType {
+	switch clientTypeStr {
 	case "display":
+		clientTypeEnum = domain.ClientTypeDisplay
 		displayIDParam := r.URL.Query().Get("id")
 		commandURL := r.URL.Query().Get("command_url")
 		token := r.URL.Query().Get("token")
-		clientID, err = h.handleNewDisplay(conn, displayIDParam, commandURL, token)
+		clientID, err = h.handleNewDisplay(displayIDParam, commandURL, token)
 		if err != nil {
 			log.Printf("Display registration failed: %v", err)
 			conn.Close()
 			return
 		}
 	case "controller":
-		clientID, err = h.handleNewController(conn)
+		clientTypeEnum = domain.ClientTypeController
+		clientID, err = h.handleNewController()
 		if err != nil {
 			log.Printf("Controller registration failed: %v", err)
 			conn.Close()
@@ -260,7 +259,7 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 		conn:       conn,
 		send:       make(chan []byte, 256),
 		id:         clientID,
-		clientType: clientType,
+		clientType: clientTypeEnum,
 	}
 	h.register <- client
 
@@ -269,7 +268,7 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	h.send(clientID, "server", "set_id", map[string]string{"id": clientID})
 
-	if clientType == "display" {
+	if clientTypeEnum == domain.ClientTypeDisplay {
 		h.postDisplayRegistration(clientID)
 	}
 }

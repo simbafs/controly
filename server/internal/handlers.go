@@ -12,7 +12,6 @@ import (
 	"sort"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"github.com/simbafs/controly/server/internal/domain"
 )
 
@@ -98,7 +97,7 @@ func (h *Hub) handleControllerMessage(client *Client, msg *domain.IncomingMessag
 
 // --- Business Logic (previously use cases) ---
 
-func (h *Hub) handleNewDisplay(conn *websocket.Conn, displayID, commandURL, token string) (string, error) {
+func (h *Hub) handleNewDisplay(displayID, commandURL, token string) (string, error) {
 	if h.serverToken != "" && h.serverToken != token {
 		return "", fmt.Errorf("invalid token")
 	}
@@ -125,7 +124,7 @@ func (h *Hub) handleNewDisplay(conn *websocket.Conn, displayID, commandURL, toke
 	return displayID, nil
 }
 
-func (h *Hub) handleNewController(conn *websocket.Conn) (string, error) {
+func (h *Hub) handleNewController() (string, error) {
 	// Simple incremental ID for controllers
 	var controllerID string
 	var err error
