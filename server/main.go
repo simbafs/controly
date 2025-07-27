@@ -5,129 +5,56 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"syscall"
 
 	"github.com/gorilla/mux"
-	"github.com/simbafs/controly/server/internal/application"
+	"github.com/simbafs/controly/server/internal"
 	"github.com/simbafs/controly/server/internal/config"
-	"github.com/simbafs/controly/server/internal/delivery"
-	"github.com/simbafs/controly/server/internal/infrastructure"
 )
 
 //go:embed all:controller/*
 var files embed.FS
 
 func main() {
-	// Initialize Configuration
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	var rLimit syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
+		log.Println("Warning: could not get file descriptor limit:", err)
+	} else {
+		rLimit.Cur = rLimit.Max
+		if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit); err != nil {
+			log.Println("Warning: could not set file descriptor limit:", err)
+		} else {
+			log.Printf("File descriptor limit set to: %d", rLimit.Cur)
+		}
+	}
+
+	log.Printf("PID: %d", os.Getpid())
+
 	cfg := config.NewConfig()
+	hub := internal.NewHub(cfg.Token)
+	go hub.Run()
 
-	// Initialize Infrastructure Adapters
-	displayRepo := infrastructure.NewInMemoryDisplayRepository()
-	controllerRepo := infrastructure.NewInMemoryControllerRepository()
-	commandFetcher := infrastructure.NewHTTPCommandFetcher()
-	inspectorGateway := infrastructure.NewInspectorGateway()
-	wsGateway := infrastructure.NewGorillaWebSocketGateway(inspectorGateway)
-	idGenerator := infrastructure.NewBase58IDGenerator()
-
-	// Initialize Use Cases
-	registerDisplay := &application.RegisterDisplay{
-		DisplayRepo:      displayRepo,
-		CommandFetcher:   commandFetcher,
-		WebSocketService: wsGateway,
-		IDGenerator:      idGenerator,
-		ServerToken:      cfg.Token,
-	}
-
-	handleDisplayDisconnection := &application.HandleDisplayDisconnection{
-		DisplayRepo:    displayRepo,
-		ControllerRepo: controllerRepo,
-		ConnManager:    wsGateway,
-	}
-
-	handleDisplayConnection := &application.HandleDisplayConnection{
-		ControllerRepo:   controllerRepo,
-		DisplayRepo:      displayRepo,
-		WebSocketService: wsGateway,
-	}
-
-	registerController := &application.RegisterController{
-		ControllerRepo:   controllerRepo,
-		WebSocketService: wsGateway,
-		IDGenerator:      idGenerator,
-	}
-
-	handleControllerDisconnection := &application.HandleControllerDisconnection{
-		ControllerRepo: controllerRepo,
-		DisplayRepo:    displayRepo,
-		ConnManager:    wsGateway,
-	}
-
-	processDisplayMessage := &application.ProcessDisplayMessage{
-		DisplayRepo:      displayRepo,
-		WebSocketService: wsGateway,
-	}
-	processControllerMessage := &application.ProcessControllerMessage{
-		ControllerRepo:   controllerRepo,
-		DisplayRepo:      displayRepo,
-		WebSocketService: wsGateway,
-	}
-
-	deleteDisplay := &application.DeleteDisplay{
-		DisplayRepo:    displayRepo,
-		ControllerRepo: controllerRepo,
-		ConnManager:    wsGateway,
-	}
-	deleteController := &application.DeleteController{
-		ControllerRepo: controllerRepo,
-		DisplayRepo:    displayRepo,
-		ConnManager:    wsGateway,
-	}
-
-	// Create dependencies struct for wsHandler
-	wsHandler := delivery.NewWsHandler(
-		registerDisplay,
-		handleDisplayConnection,
-		handleDisplayDisconnection,
-		registerController,
-		handleControllerDisconnection,
-		processDisplayMessage,
-		processControllerMessage,
-		wsGateway,
-	)
-
-	// Initialize ConnectionsHandler
-	connectionsHandler := delivery.NewConnectionsHandler(
-		displayRepo,
-		controllerRepo,
-	)
-
-	// Initialize Delete Handlers
-	deleteDisplayHandler := delivery.NewDeleteDisplayHandler(deleteDisplay)
-	deleteControllerHandler := delivery.NewDeleteControllerHandler(deleteController)
-
-	// Initialize Inspector Handler
-	inspectorWsHandler := delivery.NewInspectorWsHandler(inspectorGateway)
-
-	// Initialize Frontend Handler
 	contentFs, err := fs.Sub(files, "controller/dist")
 	if err != nil {
 		panic(err)
 	}
-	frontendHandler := delivery.NewFrontendHandler(contentFs)
 
-	// Setup router
 	router := mux.NewRouter()
 
-	// Register WebSocket routes using a subrouter for clarity and to avoid conflicts
-	router.Handle("/ws/inspector", inspectorWsHandler) // Matches /ws/inspector
-	router.Handle("/ws", wsHandler)                    // Matches /ws
+	// WebSocket handlers
+	router.HandleFunc("/ws", hub.ServeWs)
+	router.HandleFunc("/ws/inspector", hub.InspectorWsHandler)
 
-	// Register REST API routes
-	router.Handle("/api/connections", connectionsHandler).Methods("GET")
-	router.Handle("/api/displays/{id}", deleteDisplayHandler).Methods("DELETE")
-	router.Handle("/api/controllers/{id}", deleteControllerHandler).Methods("DELETE")
+	// REST API handlers
+	router.HandleFunc("/api/connections", hub.ConnectionsHandler).Methods("GET")
+	router.HandleFunc("/api/displays/{id}", hub.DeleteDisplayHandler).Methods("DELETE")
+	router.HandleFunc("/api/controllers/{id}", hub.DeleteControllerHandler).Methods("DELETE")
 
-	// Serve embedded frontend files.
-	router.PathPrefix("/").Handler(frontendHandler)
+	// Serve embedded frontend files
+	router.PathPrefix("/").Handler(hub.FrontendHandler(contentFs))
 
 	log.Printf("Relay Server started on %s", cfg.Addr)
 	log.Fatal(http.ListenAndServe(cfg.Addr, router))

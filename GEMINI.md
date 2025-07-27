@@ -1,2 +1,3 @@
 - 使用 pnpm，永遠不要刪除 ./pnpm-\*.yaml
 - 永遠不要直接修改 package.json，請使用命令 npm
+- 執行 go build、go run 之前，先執行 gofmt
