@@ -22,11 +22,13 @@ func testCapacity(ctx context.Context, numClients int, duration time.Duration, s
 	}
 
 	fmt.Printf("--- Testing with %d client pairs ---\n", numClients)
-	// The test execution itself is limited by the duration parameter.
-	runCtx, runCancel := context.WithTimeout(ctx, duration)
+	// Give the test a bit of extra time on top of the duration to allow for connection and cleanup.
+	// A fixed amount plus a small per-client increment.
+	timeout := duration + 5*time.Second + (time.Duration(numClients) * 50 * time.Millisecond)
+	runCtx, runCancel := context.WithTimeout(ctx, timeout)
 	defer runCancel()
 
-	result := ExecuteTest(runCtx, numClients, server, commandFile, httpPort, tts, ttc)
+	result := ExecuteTest(runCtx, numClients, server, commandFile, httpPort, tts, ttc, duration)
 
 	if ctx.Err() != nil { // Check main context cancellation
 		return false

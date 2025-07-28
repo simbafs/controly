@@ -83,36 +83,54 @@ func resetCounters() {
 	atomic.StoreUint64(&displayReadErrors, 0)
 }
 
-func ExecuteTest(ctx context.Context, n int, serverAddr, commandFile string, httpPort int, tts, ttc time.Duration) TestResult {
+func ExecuteTest(ctx context.Context, n int, serverAddr, commandFile string, httpPort int, tts, ttc, duration time.Duration) TestResult {
 	resetCounters()
 	log.SetFlags(0) // Disable logging for cleaner output during tests
 
-	// The context is now passed in, so we don't create it here.
-	// Signal handling is also moved to the caller.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// The main context for the entire test run, primarily for SIGINT.
+	mainCtx, mainCancel := context.WithCancel(ctx)
+	defer mainCancel()
 
-	go runProgressIndicator(ctx)
-
+	go runProgressIndicator(mainCtx)
 	commandURL := startCommandServer(httpPort, commandFile)
 
-	var wg sync.WaitGroup
+	var connectionWg, workWg sync.WaitGroup
+	connectionWg.Add(n * 2)
+	workWg.Add(n * 2)
+
 	for i := range n {
-		wg.Add(2)
 		displayID := fmt.Sprintf("load-test-display-%d", i)
 		controllerID := fmt.Sprintf("load-test-controller-%d", i)
-
-		go runDisplay(ctx, &wg, serverAddr, displayID, commandURL, tts)
+		go runDisplay(mainCtx, &connectionWg, &workWg, serverAddr, displayID, commandURL, tts)
 		time.Sleep(10 * time.Millisecond)
-		go runController(ctx, &wg, serverAddr, controllerID, displayID, ttc)
+		go runController(mainCtx, &connectionWg, &workWg, serverAddr, controllerID, displayID, ttc)
 	}
 
-	go func() {
-		wg.Wait()
-		cancel()
-	}()
+	// Wait for all connection attempts to complete.
+	connectionWg.Wait()
 
-	<-ctx.Done()
+	// If the main context is already done (e.g. Ctrl+C during connection), stop now.
+	if mainCtx.Err() != nil {
+		workWg.Wait() // Wait for goroutines to exit.
+		return TestResult{}
+	}
+
+	// Start a timer to end the test after the duration.
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		// Duration is over.
+	case <-mainCtx.Done():
+		// Test was cancelled (e.g. by SIGINT).
+	}
+
+	// Cancel the context to signal workers to stop.
+	mainCancel()
+
+	// Wait for all workers to finish gracefully.
+	workWg.Wait()
 
 	return TestResult{
 		SuccessfulControllers:    atomic.LoadUint64(&successfulControllers),
@@ -163,24 +181,29 @@ func startCommandServer(port int, filePath string) string {
 	return fmt.Sprintf("http://localhost%s/command.json", addr)
 }
 
-func runDisplay(ctx context.Context, wg *sync.WaitGroup, serverAddr, displayID, commandURL string, tts time.Duration) {
-	defer wg.Done()
+func runDisplay(ctx context.Context, connectionWg, workWg *sync.WaitGroup, serverAddr, displayID, commandURL string, tts time.Duration) {
+	defer workWg.Done()
 
 	q := url.Values{"type": {"display"}, "id": {displayID}, "command_url": {commandURL}}
 	u := url.URL{Scheme: "ws", Host: serverAddr, Path: "/ws", RawQuery: q.Encode()}
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	c, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+	connectionWg.Done() // Signal that connection attempt is finished
+
 	if err != nil {
 		atomic.AddUint64(&connectionErrors, 1)
 		return
 	}
 	atomic.AddUint64(&successfulDisplays, 1)
-	defer c.Close()
+	// defer c.Close() // Removed for abrupt shutdown
 
 	go func() {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					atomic.AddUint64(&displayReadErrors, 1)
+				}
 				return
 			}
 			var msg IncomingMessage
@@ -200,7 +223,7 @@ func runDisplay(ctx context.Context, wg *sync.WaitGroup, serverAddr, displayID, 
 	for {
 		select {
 		case <-ctx.Done():
-			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			// Abruptly stop without sending a close message.
 			return
 		case t := <-ticker.C:
 			statusPayload := map[string]any{"timestamp": t.Unix(), "status": "OK"}
@@ -214,19 +237,21 @@ func runDisplay(ctx context.Context, wg *sync.WaitGroup, serverAddr, displayID, 
 	}
 }
 
-func runController(ctx context.Context, wg *sync.WaitGroup, serverAddr, controllerID, targetDisplayID string, ttc time.Duration) {
-	defer wg.Done()
+func runController(ctx context.Context, connectionWg, workWg *sync.WaitGroup, serverAddr, controllerID, targetDisplayID string, ttc time.Duration) {
+	defer workWg.Done()
 
 	q := url.Values{"type": {"controller"}, "id": {controllerID}}
 	u := url.URL{Scheme: "ws", Host: serverAddr, Path: "/ws", RawQuery: q.Encode()}
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	c, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+	connectionWg.Done() // Signal that connection attempt is finished
+
 	if err != nil {
 		atomic.AddUint64(&connectionErrors, 1)
 		return
 	}
 	atomic.AddUint64(&successfulControllers, 1)
-	defer c.Close()
+	// defer c.Close() // Removed for abrupt shutdown
 
 	subscribeMsg := OutgoingMessage{
 		Type:    "subscribe",
@@ -241,6 +266,9 @@ func runController(ctx context.Context, wg *sync.WaitGroup, serverAddr, controll
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					atomic.AddUint64(&controllerReadErrors, 1)
+				}
 				return
 			}
 			var msg IncomingMessage
@@ -260,7 +288,7 @@ func runController(ctx context.Context, wg *sync.WaitGroup, serverAddr, controll
 	for {
 		select {
 		case <-ctx.Done():
-			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			// Abruptly stop without sending a close message.
 			return
 		case <-ticker.C:
 			commandPayload := Command{

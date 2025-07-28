@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -38,10 +39,10 @@ var runCmd = &cobra.Command{
 			cancel()
 		}()
 
-		testCtx, testCancel := context.WithTimeout(ctx, duration)
+		testCtx, testCancel := context.WithTimeout(ctx, duration+5*time.Second) // Add extra time for connection and shutdown
 		defer testCancel()
 
-		result := ExecuteTest(testCtx, n, server, commandFile, httpPort, tts, ttc)
+		result := ExecuteTest(testCtx, n, server, commandFile, httpPort, tts, ttc, duration)
 
 		// Don't print report if the context was cancelled by a signal
 		if ctx.Err() == nil {
