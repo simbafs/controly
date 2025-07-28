@@ -106,6 +106,7 @@ Finally, it uses binary search within that range to pinpoint the maximum stable 
 		fmt.Println("\n--- Step 2: Finding upper failure bound ---")
 		currentHigh := high
 		for ctx.Err() == nil {
+			fmt.Printf("Searching for upper bound. Known success: %d, Testing: %d\n", lastSuccess, currentHigh)
 			if !testCapacity(ctx, currentHigh, duration, server, commandFile, httpPort, tts, ttc, successRateThreshold) {
 				// We found the failure point. The search range is [lastSuccess, currentHigh].
 				high = currentHigh
@@ -144,6 +145,7 @@ Finally, it uses binary search within that range to pinpoint the maximum stable 
 				break
 			}
 
+			fmt.Printf("Binary searching. Current range: [%d, %d]\n", binaryLow, binaryHigh)
 			mid := binaryLow + (binaryHigh-binaryLow)/2
 			if mid <= lastSuccess { // Optimization: don't re-test known-good values
 				binaryLow = mid + 1

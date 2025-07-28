@@ -22,7 +22,7 @@ echo "✅ Controller build complete."
 
 echo "🌐 Building Server..."
 cd "${root}"/server
-go build -o "${root}"/controly
+go build -o "${root}"/controly --tags "netgo"
 echo "✅ Server build complete."
 
 echo "🎉 Controly build finished successfully!"
