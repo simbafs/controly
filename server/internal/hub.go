@@ -132,6 +132,9 @@ func (h *Hub) registerClient(client *Client) {
 		h.controllers.Store(client.id, client)
 	}
 	log.Printf("Client registered: %s (%s)", client.id, client.clientType)
+	h.send(client.id, "server", "set_id", domain.SetIDPayload{
+		ID: client.id,
+	})
 }
 
 func (h *Hub) unregisterClient(client *Client) {

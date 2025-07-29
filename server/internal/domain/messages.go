@@ -44,3 +44,7 @@ type InspectionMessage struct {
 	Timestamp       string          `json:"timestamp"`
 	OriginalMessage json.RawMessage `json:"original_message"`
 }
+
+type SetIDPayload struct {
+	ID string `json:"id"` // The ID to set for the client
+}
