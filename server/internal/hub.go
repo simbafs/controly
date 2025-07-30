@@ -95,6 +95,7 @@ func (c *Client) writePump() {
 type Hub struct {
 	displays    sync.Map // map[string]*Client
 	controllers sync.Map // map[string]*Client
+	inspectors  sync.Map // map[string]*Client
 
 	displayEntities    sync.Map // map[string]*domain.Display
 	controllerEntities sync.Map // map[string]*domain.Controller
@@ -130,11 +131,15 @@ func (h *Hub) registerClient(client *Client) {
 		h.displays.Store(client.id, client)
 	case domain.ClientTypeController:
 		h.controllers.Store(client.id, client)
+	case domain.ClientTypeInspector:
+		h.inspectors.Store(client.id, client)
 	}
 	log.Printf("Client registered: %s (%s)", client.id, client.clientType)
-	h.send(client.id, "server", "set_id", domain.SetIDPayload{
-		ID: client.id,
-	})
+	if client.clientType != domain.ClientTypeInspector {
+		h.send(client.id, "server", "set_id", domain.SetIDPayload{
+			ID: client.id,
+		})
+	}
 }
 
 func (h *Hub) unregisterClient(client *Client) {
@@ -149,6 +154,9 @@ func (h *Hub) unregisterClient(client *Client) {
 		h.controllerEntities.Delete(client.id)
 		h.handleControllerDisconnection(client.id)
 		log.Printf("Controller unregistered and removed: %s", client.id)
+	case domain.ClientTypeInspector:
+		h.inspectors.Delete(client.id)
+		log.Printf("Inspector unregistered and removed: %s", client.id)
 	}
 	close(client.send)
 }
@@ -178,46 +186,100 @@ func (h *Hub) send(to, from, msgType string, payload any) {
 }
 
 func (h *Hub) sendRaw(to, from, msgType string, payload json.RawMessage) {
-	msg := domain.OutgoingMessage{
-		Type:    msgType,
-		From:    from,
-		Payload: payload,
-	}
-	msgBytes, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Error marshalling outgoing message: %v", err)
-		return
-	}
-
-	var targetClient *Client
-	if c, ok := h.displays.Load(to); ok {
-		targetClient = c.(*Client)
-	} else if c, ok := h.controllers.Load(to); ok {
-		targetClient = c.(*Client)
-	}
-
-	if targetClient != nil {
-		select {
-		case targetClient.send <- msgBytes:
-		default:
-			log.Printf("Send channel full for client %s, message dropped.", to)
-			// Optionally unregister the client if the channel is consistently full
-			// h.unregister <- targetClient
-		}
-	} else {
-		log.Printf("Client %s not found for sending message.", to)
-	}
+	h.broadcast([]string{to}, from, msgType, payload)
 }
 
 func (h *Hub) broadcast(targets []string, from, msgType string, payload any) {
+	if len(targets) == 0 {
+		return
+	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling broadcast payload: %v", err)
 		return
 	}
-	for _, targetID := range targets {
-		h.sendRaw(targetID, from, msgType, payloadBytes)
+	msg := domain.OutgoingMessage{
+		Type:    msgType,
+		From:    from,
+		Payload: payloadBytes,
 	}
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshalling outgoing message for broadcast: %v", err)
+		return
+	}
+
+	// Forward outgoing broadcast to inspector
+	h.broadcastToInspectors(from, targets, msgBytes)
+
+	for _, targetID := range targets {
+		var targetClient *Client
+		if c, ok := h.displays.Load(targetID); ok {
+			targetClient = c.(*Client)
+		} else if c, ok := h.controllers.Load(targetID); ok {
+			targetClient = c.(*Client)
+		}
+
+		if targetClient != nil {
+			select {
+			case targetClient.send <- msgBytes:
+			default:
+				log.Printf("Send channel full for client %s, message dropped.", targetID)
+			}
+		} else {
+			log.Printf("Client %s not found for sending message.", targetID)
+		}
+	}
+}
+
+func (h *Hub) isInspectorConnected() bool {
+	var isConnected bool
+	h.inspectors.Range(func(key, value any) bool {
+		isConnected = true
+		return false // stop iteration
+	})
+	return isConnected
+}
+
+func (h *Hub) broadcastToInspectors(source string, targets []string, originalMessage json.RawMessage) {
+	if !h.isInspectorConnected() {
+		return
+	}
+
+	var temp any
+	msgToSend := originalMessage
+	if err := json.Unmarshal(originalMessage, &temp); err != nil {
+		// Not a valid JSON, treat as a raw string and marshal it into a JSON string value.
+		quoted, wrapErr := json.Marshal(string(originalMessage))
+		if wrapErr != nil {
+			log.Printf("Error wrapping non-JSON message for inspector: %v", wrapErr)
+		} else {
+			msgToSend = quoted
+		}
+	}
+
+	inspectionMessage := domain.InspectionMessage{
+		Source:          source,
+		Targets:         targets,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginalMessage: msgToSend,
+	}
+
+	messageBytes, err := json.Marshal(inspectionMessage)
+	if err != nil {
+		log.Printf("Error marshalling inspection message: %v", err)
+		return
+	}
+
+	h.inspectors.Range(func(key, value any) bool {
+		client := value.(*Client)
+		select {
+		case client.send <- messageBytes:
+		default:
+			log.Printf("Inspector send channel full for client %s, message dropped.", client.id)
+		}
+		return true
+	})
 }
 
 func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
@@ -268,8 +330,6 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	go client.writePump()
 	go client.readPump()
-
-	h.send(clientID, "server", "set_id", map[string]string{"id": clientID})
 
 	if clientTypeEnum == domain.ClientTypeDisplay {
 		h.postDisplayRegistration(clientID)

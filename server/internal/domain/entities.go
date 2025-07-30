@@ -13,6 +13,7 @@ const (
 	_ ClientType = iota
 	ClientTypeDisplay
 	ClientTypeController
+	ClientTypeInspector
 )
 
 // String returns the string representation of a ClientType.
@@ -22,6 +23,8 @@ func (ct ClientType) String() string {
 		return "display"
 	case ClientTypeController:
 		return "controller"
+	case ClientTypeInspector:
+		return "inspector"
 	default:
 		return "unknown"
 	}

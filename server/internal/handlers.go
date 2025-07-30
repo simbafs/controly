@@ -330,20 +330,31 @@ func fetchCommands(url string) ([]byte, error) {
 
 // Inspector Handler
 func (h *Hub) InspectorWsHandler(w http.ResponseWriter, r *http.Request) {
-	// This is a simplified inspector. For a full implementation, a separate gateway would be better.
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Failed to upgrade inspector connection: %v", err)
 		return
 	}
-	// The inspector is a passive listener, we just keep the connection open
-	// In a real scenario, you'd register this conn to receive broadcasts
-	defer conn.Close()
-	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
-			break
-		}
+
+	// Generate a unique ID for the inspector client
+	inspectorID, err := generateRandomString(8, "inspector-")
+	if err != nil {
+		log.Printf("Failed to generate inspector ID: %v", err)
+		conn.Close()
+		return
 	}
+
+	client := &Client{
+		hub:        h,
+		conn:       conn,
+		send:       make(chan []byte, 256),
+		id:         inspectorID,
+		clientType: domain.ClientTypeInspector,
+	}
+	h.register <- client
+
+	go client.writePump()
+	go client.readPump()
 }
 
 func (h *Hub) FrontendHandler(contentFs fs.FS) http.Handler {
