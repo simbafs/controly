@@ -1,0 +1,340 @@
+---
+import '../styles/global.css';
+---
+
+<html lang="en" class="h-full bg-gray-50" data-theme="cupcake">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/svg+xml" href="/vite.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Controly Controller</title>
+	</head>
+	<body class="h-full font-sans text-gray-900">
+		<div id="app" class="min-h-full flex flex-col justify-center items-center p-4">
+			<h1 id="connecting" class="text-2xl font-bold text-gray-500">Connecting...</h1>
+			<div id="controller" class="hidden w-full max-w-md flex-col items-center gap-6">
+				<div id="waiting-list" class="hidden w-full flex-wrap items-center gap-2 rounded-lg bg-base-200 p-3"></div>
+				<div class="w-full">
+					<button id="open-scanner" type="button" class="btn btn-primary w-full">Scan QR Code</button>
+					
+					<div class="divider">or</div>
+			
+					<div class="form-control">
+						<div class="w-full flex gap-2">
+							<input type="text" id="id-input" placeholder="Enter Display ID" class="input input-bordered join-item w-full" />
+							<button id="connect-display" type="button" class="btn btn-primary join-item">Connect</button>
+						</div>
+					</div>
+				</div>
+				<div id="controllers" class="w-full space-y-6"></div>
+			</div>
+			
+			<div id="scanner-container" class="fixed inset-0 z-50 hidden flex-col items-center justify-center gap-4 bg-black/80">
+				<div id="qr-reader" class="w-[90%] max-w-lg overflow-hidden rounded-xl bg-white"></div>
+				<button id="close-scanner" type="button" class="btn">Close Scanner</button>
+			</div>
+		</div>
+		<script>
+			import { Controller, type Command } from 'controly'
+			import { Html5QrcodeScanner } from 'html5-qrcode'
+
+			const $ = document.querySelector.bind(document)
+			
+			const SERVER_URL = import.meta.env.PROD ? location.origin.replace('http', 'ws') + '/ws' : 'ws://localhost:8080/ws'
+			const controller = new Controller({ serverUrl: SERVER_URL })
+			let html5QrcodeScanner: Html5QrcodeScanner | null = null
+			
+			function bindController(displayID: string, commandList: Command[], parent: HTMLDivElement) {
+				const container = document.createElement('div')
+				container.className = 'card w-full max-w-2xl bg-base-100 shadow-xl'
+				container.dataset.displayId = displayID
+			
+				const cardBody = document.createElement('div')
+				cardBody.className = 'card-body gap-6'
+			
+				const header = document.createElement('div')
+				header.className = 'card-title flex items-center justify-between'
+			
+				const title = document.createElement('h2')
+				title.textContent = `Display: ${displayID}`
+			
+				const disconnectBtn = document.createElement('button')
+				disconnectBtn.textContent = 'Disconnect'
+				disconnectBtn.className = 'btn btn-error btn-sm'
+				disconnectBtn.addEventListener('click', () => {
+					controller.unsubscribe([displayID])
+					container.remove()
+					console.log(`Unsubscribed from and removed display: ${displayID}`)
+				})
+			
+				header.appendChild(title)
+				header.appendChild(disconnectBtn)
+				cardBody.appendChild(header)
+			
+				const controlContainer = document.createElement('div')
+				controlContainer.className = 'space-y-2 flex flex-col gap-1'
+			
+				function label(text: string, htmlFor: string): HTMLLabelElement {
+					const label = document.createElement('label')
+					label.className = 'label'
+					const span = document.createElement('span')
+					span.className = 'label-text'
+					span.textContent = text
+					label.appendChild(span)
+					label.htmlFor = htmlFor
+					return label
+				}
+			
+				for (const cmd of commandList) {
+					const id = `${displayID}-${cmd.name}`
+					const fieldContainer = document.createElement('div')
+					fieldContainer.className = 'flex gap-2 items-center'
+					switch (cmd.type) {
+						case 'text':
+							const input = document.createElement('input')
+							input.id = id
+							input.type = 'text'
+							input.name = cmd.name
+							input.className = `input input-bordered w-full mt-2`
+							input.addEventListener('change', () => {
+								controller.sendCommand(displayID, {
+									name: cmd.name,
+									args: { value: input.value },
+								})
+							})
+							fieldContainer.appendChild(label(cmd.label, id))
+							fieldContainer.appendChild(input)
+							break
+						case 'number':
+							const numberInput = document.createElement('input')
+							numberInput.type = 'number'
+							numberInput.name = cmd.name
+							numberInput.className = `input input-bordered grow`
+							numberInput.addEventListener('change', () => {
+								controller.sendCommand(displayID, {
+									name: cmd.name,
+									args: { value: parseFloat(numberInput.value) },
+								})
+							})
+							if (cmd.default !== undefined) numberInput.value = cmd.default.toString()
+							if (cmd.min !== undefined) numberInput.min = cmd.min.toString()
+							if (cmd.max !== undefined) numberInput.max = cmd.max.toString()
+							if (cmd.step !== undefined) numberInput.step = cmd.step.toString()
+							fieldContainer.appendChild(label(cmd.label, id))
+							fieldContainer.appendChild(numberInput)
+							break
+						case 'button':
+							const btn = document.createElement('button')
+							btn.textContent = cmd.label
+							btn.name = cmd.name
+							btn.className = 'btn btn-primary grow'
+							btn.addEventListener('click', () => {
+								controller.sendCommand(displayID, { name: cmd.name })
+							})
+							fieldContainer.appendChild(btn)
+							break
+						case 'select':
+							const select = document.createElement('select')
+							select.className = `select select-bordered w-full mt-2`
+							for (const option of cmd.options) {
+								const opt = document.createElement('option')
+								opt.value = option.value.toString()
+								opt.textContent = option.label
+								select.appendChild(opt)
+							}
+							select.name = cmd.name
+							select.addEventListener('change', () => {
+								controller.sendCommand(displayID, {
+									name: cmd.name,
+									args: { value: select.value },
+								})
+							})
+							select.value = cmd.default?.toString() || ''
+							fieldContainer.appendChild(label(cmd.label, id))
+							fieldContainer.appendChild(select)
+							break
+						case 'checkbox':
+							const checkboxContainer = document.createElement('div')
+							checkboxContainer.className = 'form-control'
+							const labelCheckbox = document.createElement('label')
+							labelCheckbox.className = 'label cursor-pointer'
+							const span = document.createElement('span')
+							span.className = 'label-text'
+							span.textContent = cmd.label
+							labelCheckbox.appendChild(span)
+					
+							const checkbox = document.createElement('input')
+							checkbox.type = 'checkbox'
+							checkbox.name = cmd.name
+							checkbox.checked = cmd.default || false
+							checkbox.className = 'checkbox'
+							checkbox.addEventListener('change', () => {
+								controller.sendCommand(displayID, {
+									name: cmd.name,
+									args: { value: checkbox.checked },
+								})
+							})
+							label.htmlFor = cmd.name
+							checkbox.id = id
+							labelCheckbox.appendChild(checkbox)
+							fieldContainer.appendChild(labelCheckbox)
+							break
+						default:
+							console.warn(`Unknown command:`, cmd)
+							continue // Skip unknown commands
+					}
+					controlContainer.appendChild(fieldContainer)
+				}
+				cardBody.appendChild(controlContainer)
+			
+				const status = document.createElement('div')
+				status.id = `status-${displayID}`
+				status.className =
+					'pt-4 border-t border-dashed border-gray-200 font-mono text-xs break-all whitespace-pre-wrap text-gray-600'
+				cardBody.appendChild(status)
+			
+				container.appendChild(cardBody)
+				parent.appendChild(container)
+			}
+			
+			function onScanSuccess(decodedText: string) {
+				console.log(`Code matched = ${decodedText}`)
+				const idInput = $<HTMLInputElement>('#id-input')!
+				idInput.value = decodedText
+				closeScanner()
+				handleAddDisplay(decodedText)
+			}
+			
+			function onScanFailure(error: any) {
+				console.warn(`Code scan error = ${error}`)
+			}
+			
+			function closeScanner() {
+				if (html5QrcodeScanner) {
+					html5QrcodeScanner.clear().catch(error => {
+						console.error('Failed to clear html5QrcodeScanner.', error)
+					})
+					html5QrcodeScanner = null
+					$<HTMLDivElement>('#scanner-container')!.style.display = 'none'
+				}
+			}
+			
+			function handleOpenScanner() {
+				const scannerContainer = $<HTMLDivElement>('#scanner-container')!
+				scannerContainer.style.display = 'flex'
+			
+				if (!html5QrcodeScanner) {
+					html5QrcodeScanner = new Html5QrcodeScanner(
+						'qr-reader',
+						{ fps: 10, qrbox: { width: 250, height: 250 } },
+						/* verbose= */ false,
+					)
+				}
+				html5QrcodeScanner.render(onScanSuccess, onScanFailure)
+			}
+			
+			function handleAddDisplay(id?: string) {
+				const $input = $<HTMLInputElement>('#id-input')!
+				const displayId = id || $input!.value.trim()
+				if (!displayId) return
+				console.log(`Subscribing to display: ${displayId}`)
+				controller.subscribe([displayId])
+				$input.value = ''
+			}
+			
+			function updateWaitingList(list: string[]) {
+				const container = $<HTMLDivElement>('#waiting-list')!
+				container.innerHTML = '' // Clear previous list
+			
+				if (list.length === 0) {
+					container.style.display = 'none'
+					return
+				}
+			
+				container.style.display = 'flex'
+			
+				const title = document.createElement('span')
+				title.className = 'label-text mr-2'
+				title.textContent = 'Waiting for:'
+				container.appendChild(title)
+			
+				list.forEach(id => {
+					const badge = document.createElement('button')
+					badge.className = 'badge badge-outline badge-primary rounded-full hover:badge-error transition-colors'
+					badge.textContent = id
+					badge.onclick = () => {
+						controller.setWaitingList(list.filter(item => item !== id))
+					}
+					container.appendChild(badge)
+				})
+			}
+			
+			controller.on('open', () => {
+				console.log('Controller connected')
+				$<HTMLDivElement>('#connecting')!.style.display = 'none'
+				$<HTMLDivElement>('#controller')!.style.display = 'flex'
+			
+				$<HTMLButtonElement>('#open-scanner')!.addEventListener('click', handleOpenScanner)
+				$<HTMLButtonElement>('#connect-display')!.addEventListener('click', () => handleAddDisplay())
+				$<HTMLButtonElement>('#close-scanner')!.addEventListener('click', closeScanner)
+			
+				const param = new URLSearchParams(window.location.search)
+				const ids = param.getAll('id')
+			
+				for (const id of ids) {
+					console.log(id)
+					handleAddDisplay(id)
+				}
+			})
+			
+			controller.on('close', () => {
+				console.log('Controller disconnected')
+				$<HTMLDivElement>('#connecting')!.style.display = 'block'
+				$<HTMLDivElement>('#controller')!.style.display = 'none'
+			
+				$<HTMLButtonElement>('#open-scanner')!.removeEventListener('click', handleOpenScanner)
+				$<HTMLButtonElement>('#connect-display')!.removeEventListener('click', () => handleAddDisplay())
+				$<HTMLButtonElement>('#close-scanner')!.removeEventListener('click', closeScanner)
+				closeScanner()
+			})
+			
+			controller.on('command_list', (commandList, displayID) => {
+				const existing = document.querySelector(`[data-display-id="${displayID}"]`)
+				if (existing) {
+					existing.remove()
+				}
+				bindController(displayID!, commandList, $<HTMLDivElement>('#controllers')!)
+			})
+			
+			controller.on('status', (status, from) => {
+				const statusDiv = $<HTMLDivElement>(`#status-${from}`)
+				if (statusDiv) {
+					statusDiv.innerHTML = ''
+					for (const [key, value] of Object.entries(status)) {
+						const p = document.createElement('p')
+						p.className = 'm-2'
+						p.textContent = `${key}: ${JSON.stringify(value)}`
+						statusDiv.appendChild(p)
+					}
+				} else {
+					console.warn(`No status div found for display ID: ${from}`)
+				}
+			})
+			
+			controller.on('display_disconnected', displayId => {
+				const controlGroup = document.querySelector(`[data-display-id="${displayId}"]`)
+				if (controlGroup) {
+					controlGroup.remove()
+					console.log(`Removed control group for disconnected display: ${displayId}`)
+				}
+			})
+			
+			controller.on('waiting', waitingList => {
+				updateWaitingList(waitingList)
+			})
+			
+			controller.connect()
+		</script>
+	</body>
+</html>
+
