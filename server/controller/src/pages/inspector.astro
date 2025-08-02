@@ -1,227 +1,220 @@
 ---
-import '../styles/global.css';
+import '../styles/global.css'
+import Layout from '../layout/layout.astro'
 ---
 
-<html lang="en" class="h-full bg-gray-900 text-white">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Controly Inspector</title>
-	</head>
-	<body class="h-full">
-		<div id="app" class="p-4 md:p-6 lg:p-8 h-full flex flex-col">
-			<header class="mb-4">
-				<div class="flex justify-between items-center">
-					<h1 class="text-2xl md:text-3xl font-bold text-gray-100">Controly Message Inspector</h1>
-					<div class="flex items-center gap-4">
-						<div class="flex items-center gap-2">
-							<label for="max-log-input" class="text-sm font-medium text-gray-300">Max Logs:</label>
-							<input
-								type="number"
-								id="max-log-input"
-								value="1000"
-								min="0"
-								class="w-24 bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
-							/>
-						</div>
-						<button
-							id="clear-log-btn"
-							class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md transition-colors duration-150 ease-in-out"
-						>
-							Clear Log
-						</button>
-					</div>
-				</div>
-				<div id="status" class="text-sm text-gray-400 mt-1">Connecting to server...</div>
-			</header>
-
-			<div class="log-container flex-grow flex flex-col bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-				<!-- Header -->
-				<div
-					class="log-header grid grid-cols-12 gap-4 p-4 bg-gray-700/50 font-semibold text-gray-300 border-b border-gray-600"
-				>
-					<div class="col-span-3">Timestamp</div>
-					<div class="col-span-2">Source</div>
-					<div class="col-span-2">Targets</div>
-					<div class="col-span-5">Original Message</div>
-				</div>
-
-				<!-- Filters -->
-				<div
-					class="log-filters grid grid-cols-12 gap-4 p-2 bg-gray-700/50 border-b border-gray-600 items-center"
-				>
-					<div class="col-span-3"></div>
-					<div class="col-span-2">
+<Layout title="Controly WebSocket Inspector" className="bg-gray-900 text-white">
+	<div class="p-4 md:p-6 lg:p-8 h-screen flex flex-col">
+		<header class="mb-4">
+			<div class="flex justify-between items-center">
+				<h1 class="text-2xl md:text-3xl font-bold text-gray-100">Controly Message Inspector</h1>
+				<div class="flex items-center gap-4">
+					<div class="flex items-center gap-2">
+						<label for="max-log-input" class="text-sm font-medium text-gray-300">Max Logs:</label>
 						<input
-							type="text"
-							id="source-filter"
-							placeholder="Filter source (exact)..."
-							class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
+							type="number"
+							id="max-log-input"
+							value="1000"
+							min="0"
+							class="w-24 bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
 						/>
 					</div>
-					<div class="col-span-2">
-						<input
-							type="text"
-							id="targets-filter"
-							placeholder="Filter targets (includes)..."
-							class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
-						/>
-					</div>
-					<div class="col-span-5">
-						<input
-							type="text"
-							id="message-filter"
-							placeholder="Filter message (includes)..."
-							class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
-						/>
-					</div>
-				</div>
-
-				<!-- Entries -->
-				<div id="log-entries" class="log-entries flex-grow overflow-y-auto">
-					<!-- Log rows will be injected here -->
+					<button
+						id="clear-log-btn"
+						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-md transition-colors duration-150 ease-in-out"
+					>
+						Clear Log
+					</button>
 				</div>
 			</div>
+			<div id="status" class="text-sm text-gray-400 mt-1">Connecting to server...</div>
+		</header>
+
+		<div class="log-container flex-grow flex flex-col bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+			<!-- Header -->
+			<div
+				class="log-header grid grid-cols-12 gap-4 p-4 bg-gray-700/50 font-semibold text-gray-300 border-b border-gray-600"
+			>
+				<div class="col-span-3">Timestamp</div>
+				<div class="col-span-2">Source</div>
+				<div class="col-span-2">Targets</div>
+				<div class="col-span-5">Original Message</div>
+			</div>
+
+			<!-- Filters -->
+			<div class="log-filters grid grid-cols-12 gap-4 p-2 bg-gray-700/50 border-b border-gray-600 items-center">
+				<div class="col-span-3"></div>
+				<div class="col-span-2">
+					<input
+						type="text"
+						id="source-filter"
+						placeholder="Filter source (exact)..."
+						class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
+					/>
+				</div>
+				<div class="col-span-2">
+					<input
+						type="text"
+						id="targets-filter"
+						placeholder="Filter targets (includes)..."
+						class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
+					/>
+				</div>
+				<div class="col-span-5">
+					<input
+						type="text"
+						id="message-filter"
+						placeholder="Filter message (includes)..."
+						class="w-full bg-gray-900 border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
+					/>
+				</div>
+			</div>
+
+			<!-- Entries -->
+			<div id="log-entries" class="log-entries flex-grow overflow-y-auto">
+				<!-- Log rows will be injected here -->
+			</div>
 		</div>
-		<script>
-			const SERVER_URL = import.meta.env.PROD ? location.origin.replace('http', 'ws') + '/ws/inspector' : 'ws://localhost:8080/ws/inspector'
-			const statusEl = document.getElementById('status') as HTMLDivElement
-			const logEntriesEl = document.getElementById('log-entries') as HTMLDivElement
-			const sourceFilterEl = document.getElementById('source-filter') as HTMLInputElement
-			const targetsFilterEl = document.getElementById('targets-filter') as HTMLInputElement
-			const messageFilterEl = document.getElementById('message-filter') as HTMLInputElement
-			const maxLogInputEl = document.getElementById('max-log-input') as HTMLInputElement
-			const clearLogBtnEl = document.getElementById('clear-log-btn') as HTMLButtonElement
+	</div>
+	<script>
+		const SERVER_URL = import.meta.env.PROD
+			? location.origin.replace('http', 'ws') + '/ws/inspector'
+			: 'ws://localhost:8080/ws/inspector'
+		const statusEl = document.getElementById('status') as HTMLDivElement
+		const logEntriesEl = document.getElementById('log-entries') as HTMLDivElement
+		const sourceFilterEl = document.getElementById('source-filter') as HTMLInputElement
+		const targetsFilterEl = document.getElementById('targets-filter') as HTMLInputElement
+		const messageFilterEl = document.getElementById('message-filter') as HTMLInputElement
+		const maxLogInputEl = document.getElementById('max-log-input') as HTMLInputElement
+		const clearLogBtnEl = document.getElementById('clear-log-btn') as HTMLButtonElement
 
-			let allLogs: any[] = []
+		let allLogs: any[] = []
 
-			function clearLogs() {
-				allLogs = []
+		function clearLogs() {
+			allLogs = []
+			renderLogs()
+		}
+
+		function applyMaxLogLimit() {
+			const maxLogs = parseInt(maxLogInputEl.value, 10)
+			if (!isNaN(maxLogs) && maxLogs > 0 && allLogs.length > maxLogs) {
+				allLogs = allLogs.slice(allLogs.length - maxLogs)
+			}
+		}
+
+		function renderLogs() {
+			if (!logEntriesEl) return
+
+			const sourceFilter = sourceFilterEl.value.trim()
+			const targetsFilter = targetsFilterEl.value.trim()
+			const messageFilter = messageFilterEl.value.trim()
+
+			const filteredLogs = allLogs.filter(log => {
+				const sourceMatch = !sourceFilter || log.source.includes(sourceFilter)
+				const targetsMatch = !targetsFilter || log.targets.some((t: string) => t.includes(targetsFilter))
+				const messageMatch = !messageFilter || JSON.stringify(log.original_message).includes(messageFilter)
+				return sourceMatch && targetsMatch && messageMatch
+			})
+
+			logEntriesEl.innerHTML = ''
+
+			filteredLogs.forEach(data => {
+				const row = document.createElement('div')
+				row.className =
+					'log-row grid grid-cols-12 gap-4 p-4 border-b border-gray-700 text-sm hover:bg-gray-700/50 transition-colors duration-150 ease-in-out'
+
+				const timestampCell = document.createElement('div')
+				timestampCell.className = 'col-span-3 font-mono text-gray-400'
+				timestampCell.textContent = new Date(data.timestamp).toLocaleString()
+				row.appendChild(timestampCell)
+
+				const sourceCell = document.createElement('div')
+				sourceCell.className = 'col-span-2 font-mono text-cyan-400'
+				sourceCell.textContent = data.source
+				row.appendChild(sourceCell)
+
+				const targetsCell = document.createElement('div')
+				targetsCell.className = 'col-span-2 font-mono text-purple-400'
+				targetsCell.textContent = data.targets.join(', ')
+				row.appendChild(targetsCell)
+
+				const messageCell = document.createElement('div')
+				messageCell.className = 'col-span-5 original-message overflow-x-auto'
+				const pre = document.createElement('pre')
+				pre.className = 'bg-gray-900/70 p-3 rounded-md text-xs'
+				pre.textContent = JSON.stringify(data.original_message, null, 2)
+				messageCell.appendChild(pre)
+				row.appendChild(messageCell)
+
+				logEntriesEl.appendChild(row)
+			})
+
+			if (!sourceFilter && !targetsFilter && !messageFilter) {
+				logEntriesEl.scrollTop = logEntriesEl.scrollHeight
+			}
+		}
+
+		function connect() {
+			if (
+				!statusEl ||
+				!logEntriesEl ||
+				!sourceFilterEl ||
+				!targetsFilterEl ||
+				!messageFilterEl ||
+				!maxLogInputEl ||
+				!clearLogBtnEl
+			) {
+				console.error('Required elements not found in DOM')
+				return
+			}
+
+			sourceFilterEl.addEventListener('input', renderLogs)
+			targetsFilterEl.addEventListener('input', renderLogs)
+			messageFilterEl.addEventListener('input', renderLogs)
+			clearLogBtnEl.addEventListener('click', clearLogs)
+			maxLogInputEl.addEventListener('change', () => {
+				applyMaxLogLimit()
 				renderLogs()
+			})
+
+			statusEl.textContent = `Connecting to ${SERVER_URL}...`
+			const ws = new WebSocket(SERVER_URL)
+
+			ws.onopen = () => {
+				console.log('Connected to /ws/inspector')
+				statusEl.textContent = 'Connected. Listening for messages...'
+				statusEl.classList.remove('text-yellow-400', 'text-red-500')
+				statusEl.classList.add('text-green-400')
 			}
 
-			function applyMaxLogLimit() {
-				const maxLogs = parseInt(maxLogInputEl.value, 10)
-				if (!isNaN(maxLogs) && maxLogs > 0 && allLogs.length > maxLogs) {
-					allLogs = allLogs.slice(allLogs.length - maxLogs)
-				}
-			}
-
-			function renderLogs() {
-				if (!logEntriesEl) return
-
-				const sourceFilter = sourceFilterEl.value.trim()
-				const targetsFilter = targetsFilterEl.value.trim()
-				const messageFilter = messageFilterEl.value.trim()
-
-				const filteredLogs = allLogs.filter(log => {
-					const sourceMatch = !sourceFilter || log.source.includes(sourceFilter)
-					const targetsMatch = !targetsFilter || log.targets.some((t: string) => t.includes(targetsFilter))
-					const messageMatch = !messageFilter || JSON.stringify(log.original_message).includes(messageFilter)
-					return sourceMatch && targetsMatch && messageMatch
-				})
-
-				logEntriesEl.innerHTML = '' 
-
-				filteredLogs.forEach(data => {
-					const row = document.createElement('div')
-					row.className =
-						'log-row grid grid-cols-12 gap-4 p-4 border-b border-gray-700 text-sm hover:bg-gray-700/50 transition-colors duration-150 ease-in-out'
-
-					const timestampCell = document.createElement('div')
-					timestampCell.className = 'col-span-3 font-mono text-gray-400'
-					timestampCell.textContent = new Date(data.timestamp).toLocaleString()
-					row.appendChild(timestampCell)
-
-					const sourceCell = document.createElement('div')
-					sourceCell.className = 'col-span-2 font-mono text-cyan-400'
-					sourceCell.textContent = data.source
-					row.appendChild(sourceCell)
-
-					const targetsCell = document.createElement('div')
-					targetsCell.className = 'col-span-2 font-mono text-purple-400'
-					targetsCell.textContent = data.targets.join(', ')
-					row.appendChild(targetsCell)
-
-					const messageCell = document.createElement('div')
-					messageCell.className = 'col-span-5 original-message overflow-x-auto'
-					const pre = document.createElement('pre')
-					pre.className = 'bg-gray-900/70 p-3 rounded-md text-xs'
-					pre.textContent = JSON.stringify(data.original_message, null, 2)
-					messageCell.appendChild(pre)
-					row.appendChild(messageCell)
-
-					logEntriesEl.appendChild(row)
-				})
-
-				if (!sourceFilter && !targetsFilter && !messageFilter) {
-					logEntriesEl.scrollTop = logEntriesEl.scrollHeight
-				}
-			}
-
-			function connect() {
-				if (
-					!statusEl ||
-					!logEntriesEl ||
-					!sourceFilterEl ||
-					!targetsFilterEl ||
-					!messageFilterEl ||
-					!maxLogInputEl ||
-					!clearLogBtnEl
-				) {
-					console.error('Required elements not found in DOM')
-					return
-				}
-
-				sourceFilterEl.addEventListener('input', renderLogs)
-				targetsFilterEl.addEventListener('input', renderLogs)
-				messageFilterEl.addEventListener('input', renderLogs)
-				clearLogBtnEl.addEventListener('click', clearLogs)
-				maxLogInputEl.addEventListener('change', () => {
+			ws.onmessage = (event: MessageEvent) => {
+				try {
+					const data = JSON.parse(event.data)
+					allLogs.push(data)
 					applyMaxLogLimit()
 					renderLogs()
-				})
-
-				statusEl.textContent = `Connecting to ${SERVER_URL}...`
-				const ws = new WebSocket(SERVER_URL)
-
-				ws.onopen = () => {
-					console.log('Connected to /ws/inspector')
-					statusEl.textContent = 'Connected. Listening for messages...'
-					statusEl.classList.remove('text-yellow-400', 'text-red-500')
-					statusEl.classList.add('text-green-400')
-				}
-
-				ws.onmessage = (event: MessageEvent) => {
-					try {
-						const data = JSON.parse(event.data)
-						allLogs.push(data)
-						applyMaxLogLimit()
-						renderLogs()
-					} catch (error) {
-						console.error('Failed to parse incoming message:', error)
-					}
-				}
-
-				ws.onclose = () => {
-					console.log('Disconnected from /ws/inspector')
-					statusEl.textContent = 'Disconnected. Retrying in 5 seconds...'
-					statusEl.classList.remove('text-green-400', 'text-yellow-400')
-					statusEl.classList.add('text-red-500')
-					setTimeout(connect, 5000)
-				}
-
-				ws.onerror = (error: Event) => {
-					console.error('WebSocket error:', error)
-					statusEl.textContent = 'Connection error.'
-					statusEl.classList.remove('text-green-400')
-					statusEl.classList.add('text-red-500')
-					ws.close()
+				} catch (error) {
+					console.error('Failed to parse incoming message:', error)
 				}
 			}
 
-			document.addEventListener('DOMContentLoaded', connect)
-		</script>
-	</body>
-</html>
+			ws.onclose = () => {
+				console.log('Disconnected from /ws/inspector')
+				statusEl.textContent = 'Disconnected. Retrying in 5 seconds...'
+				statusEl.classList.remove('text-green-400', 'text-yellow-400')
+				statusEl.classList.add('text-red-500')
+				setTimeout(connect, 5000)
+			}
 
+			ws.onerror = (error: Event) => {
+				console.error('WebSocket error:', error)
+				statusEl.textContent = 'Connection error.'
+				statusEl.classList.remove('text-green-400')
+				statusEl.classList.add('text-red-500')
+				ws.close()
+			}
+		}
+
+		document.addEventListener('DOMContentLoaded', connect)
+	</script>
+</Layout>
